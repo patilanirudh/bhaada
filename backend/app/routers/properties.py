@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
+from app.default_rules import DEFAULT_HOUSE_RULES
 from app.deps import Scope
 from app.models import Property, Tenant, TenantStatus, Unit
 from app.schemas import PropertyIn, PropertyOut, UnitIn, UnitOut
@@ -17,8 +18,10 @@ def list_properties(scope: Scope):
 
 @router.post("", response_model=PropertyOut, status_code=201)
 def create_property(body: PropertyIn, scope: Scope):
+    rules = body.house_rules if body.house_rules is not None else (
+        scope.owner.default_house_rules or DEFAULT_HOUSE_RULES)
     p = Property(owner_id=scope.owner_id, name=body.name.strip(), address=body.address,
-                 house_rules=sanitize_html(body.house_rules))
+                 house_rules=sanitize_html(rules))
     scope.db.add(p)
     scope.db.flush()
     audit(scope.db, scope.owner_id, "create", "property", p.id, {"name": p.name})

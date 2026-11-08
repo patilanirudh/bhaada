@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 
 from app.config import get_settings
+from app.default_rules import DEFAULT_HOUSE_RULES
 from app.deps import DB, CurrentOwner
 from app.models import Owner
 from app.schemas import (
@@ -33,6 +34,7 @@ REFRESH_COOKIE = "refresh_token"
 def owner_out(owner: Owner) -> OwnerOut:
     out = OwnerOut.model_validate(owner)
     out.gmail_configured = bool(owner.gmail_address and owner.gmail_app_password_encrypted)
+    out.default_house_rules = owner.default_house_rules or DEFAULT_HOUSE_RULES
     return out
 
 

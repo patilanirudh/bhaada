@@ -2,9 +2,10 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.deps import Scope
-from app.models import MessageTemplate
+from app.models import MessageTemplate, Property
+from app.utils.sanitize import sanitize_html
 from app.routers.auth import owner_out
-from app.schemas import GmailIn, OwnerOut, OwnerUpdate, TemplateIn, TemplateOut
+from app.schemas import GmailIn, HouseRulesIn, OwnerOut, OwnerUpdate, TemplateIn, TemplateOut
 from app.security import encrypt
 from app.services.audit import audit
 from app.services.email import EmailError, send_owner_email
@@ -20,6 +21,22 @@ def update_profile(body: OwnerUpdate, scope: Scope):
     for k, v in data.items():
         setattr(owner, k, v or None if k in ("phone", "upi_id") else v)
     audit(scope.db, owner.id, "update", "owner", owner.id, {"fields": list(data)})
+    scope.db.commit()
+    return owner_out(owner)
+
+
+@router.put("/house-rules", response_model=OwnerOut)
+def set_default_house_rules(body: HouseRulesIn, scope: Scope):
+    """Owner's default rules for new properties; optionally copy them to every existing property."""
+    owner = scope.owner
+    owner.default_house_rules = sanitize_html(body.house_rules)
+    updated = 0
+    if body.apply_to_all_properties:
+        for p in scope.all(Property):
+            p.house_rules = owner.default_house_rules
+            updated += 1
+    audit(scope.db, owner.id, "update", "owner", owner.id,
+          {"field": "default_house_rules", "properties_updated": updated})
     scope.db.commit()
     return owner_out(owner)
 

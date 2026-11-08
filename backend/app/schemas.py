@@ -62,6 +62,12 @@ class OwnerOut(ORM):
     gmail_configured: bool = False
     preferred_language: str
     created_at: datetime
+    default_house_rules: str | None = ""
+
+
+class HouseRulesIn(BaseModel):
+    house_rules: str = Field(max_length=20000)
+    apply_to_all_properties: bool = False
 
 
 class OwnerUpdate(BaseModel):

@@ -3,18 +3,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { inr } from "../lib/format";
 import type { Property, Unit } from "../lib/types";
+import { useAuth } from "../lib/auth";
 import RichTextEditor from "../components/RichTextEditor";
 import { Button, Card, Empty, ErrorBox, Field, Input, Modal, PageHeader, PageLoader, Textarea, errMsg, useToast } from "../components/ui";
 
-const DEFAULT_RULES =
-  "<ol><li>Rent must be paid on or before the <b>5th of every month</b>. Rent increases by <b>5% every year</b>.</li><li>Pay the electricity bill on time.</li><li>Do not damage the property or alter anything without prior permission from the owner.</li><li>Do not bring anyone to stay apart from yourself without informing the owner.</li><li>A maintenance amount of <b>₹3,000 per tenant</b> will be deducted from the security deposit. This does not include charges for any damage caused.</li><li>While vacating, inform the owner <b>2 months in advance</b> and leave the premises clean.</li><li>Subletting the flat or a room to anyone else is not allowed.</li><li>No illegal activities, drugs or nuisance on the premises.</li><li>Smoking inside the flat is not allowed.</li><li>Keep noise low between 10 PM and 7 AM; respect the neighbours.</li><li>Keep common areas clean and dispose of garbage properly (separate wet and dry waste).</li><li>Pets are allowed only with the owner's prior permission.</li><li>Park vehicles only in the allotted space.</li><li>The owner may inspect the flat with 24 hours' notice (immediately in an emergency).</li><li>Report any leakage, electrical or plumbing problem to the owner immediately.</li><li>Return all keys at the time of vacating; lost keys or locks will be charged.</li></ol>";
 
 function PropertyForm({ initial, onDone }: { initial?: Property; onDone: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState(initial?.name ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
-  const [rules, setRules] = useState(initial?.house_rules ?? DEFAULT_RULES);
+  const { owner } = useAuth();
+  const [rules, setRules] = useState(initial?.house_rules ?? owner?.default_house_rules ?? "");
   const m = useMutation({
     mutationFn: () =>
       api(initial ? `/api/properties/${initial.id}` : "/api/properties", {
@@ -40,7 +40,7 @@ function PropertyForm({ initial, onDone }: { initial?: Property; onDone: () => v
       <Field label="Address">
         <Textarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
       </Field>
-      <Field label="House rules" hint="Shown on the registration page and in the welcome email.">
+      <Field label="House rules" hint="Shown on the registration page and in the welcome email. Change your default rules in Settings.">
         <RichTextEditor value={rules} onChange={setRules} placeholder="Write your house rules…" />
       </Field>
       <Button type="submit" className="w-full" loading={m.isPending}>Save</Button>

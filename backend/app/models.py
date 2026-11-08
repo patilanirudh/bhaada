@@ -70,6 +70,7 @@ class Owner(Base):
     gmail_address: Mapped[str | None] = mapped_column(String(255))
     gmail_app_password_encrypted: Mapped[str | None] = mapped_column(Text)
     preferred_language: Mapped[str] = mapped_column(String(2), default="en")
+    default_house_rules: Mapped[str | None] = mapped_column(Text)  # owner's template for new properties
     token_version: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

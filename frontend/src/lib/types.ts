@@ -8,6 +8,7 @@ export type Owner = {
   gmail_configured: boolean;
   preferred_language: "en" | "hi";
   created_at: string;
+  default_house_rules: string;
 };
 
 export type Unit = { id: number; property_id: number; name: string; default_rent: number };

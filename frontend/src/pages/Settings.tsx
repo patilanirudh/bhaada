@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { Owner } from "../lib/types";
+import RichTextEditor from "../components/RichTextEditor";
 import { Badge, Button, Card, ErrorBox, Field, Input, PageHeader, PageLoader, Select, Textarea, errMsg, useToast } from "../components/ui";
 
 function Section({ title, desc, children }: { title: string; desc?: ReactNode; children: ReactNode }) {
@@ -95,6 +96,28 @@ function Gmail() {
   );
 }
 
+function HouseRules() {
+  const { owner, setOwner } = useAuth();
+  const toast = useToast();
+  const [rules, setRules] = useState(owner!.default_house_rules);
+  const [applyAll, setApplyAll] = useState(false);
+  const m = useMutation({
+    mutationFn: () => api<Owner>("/api/settings/house-rules", { method: "PUT", body: { house_rules: rules, apply_to_all_properties: applyAll } }),
+    onSuccess: (o) => { setOwner(o); toast(applyAll ? "Rules saved and applied to all properties" : "Default rules saved"); setApplyAll(false); },
+  });
+  return (
+    <Section title="Default house rules" desc="Used for every new property. Each property's rules can still be edited on the Properties page.">
+      <ErrorBox error={m.error} />
+      <RichTextEditor value={rules} onChange={setRules} placeholder="Write your house rules…" />
+      <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={applyAll} onChange={(e) => setApplyAll(e.target.checked)} />
+        Also replace the rules of all my existing properties
+      </label>
+      <Button className="mt-3" loading={m.isPending} onClick={() => m.mutate()}>Save rules</Button>
+    </Section>
+  );
+}
+
 function Password() {
   const toast = useToast();
   const [cur, setCur] = useState("");
@@ -178,6 +201,7 @@ export default function Settings() {
       )}
       <Profile />
       <Gmail />
+      <HouseRules />
       <Templates />
       <Password />
     </div>

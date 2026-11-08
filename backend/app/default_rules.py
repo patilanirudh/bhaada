@@ -19,5 +19,9 @@ DEFAULT_HOUSE_RULES = (
     "<li>The owner may inspect the flat with 24 hours' notice (immediately in an emergency).</li>"
     "<li>Report any leakage, electrical or plumbing problem to the owner immediately.</li>"
     "<li>Return all keys at the time of vacating; lost keys or locks will be charged.</li>"
+    "<li>After moving in, small breakages and minor repairs (e.g. bulbs, taps, switches, door handles) "
+    "are the tenant's responsibility and at the tenant's cost; the owner will not be responsible for them.</li>"
+    "<li>The property must be handed back in the same condition in which it was given at move-in "
+    "(normal wear and tear excepted). Any damage will be deducted from the security deposit.</li>"
     "</ol>"
 )
