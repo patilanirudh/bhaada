@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { api, ApiError } from "../lib/api";
+import { ApiError } from "../api/client";
+import { authApi } from "../api/endpoints";
 import { useAuth } from "../lib/auth";
 import { Button, ErrorBox, Field, Input } from "../components/ui";
 
@@ -123,7 +124,7 @@ export function ForgotPassword() {
     setBusy(true);
     setErr(null);
     try {
-      const r = await api<{ detail: string }>("/api/auth/forgot-password", { method: "POST", body: { email }, auth: false });
+      const r = await authApi.forgotPassword(email);
       setDone(r.detail);
     } catch (e) {
       setErr(e);
@@ -165,7 +166,7 @@ export function ResetPassword() {
     setBusy(true);
     setErr(null);
     try {
-      await api("/api/auth/reset-password", { method: "POST", body: { token: params.get("token"), password }, auth: false });
+      await authApi.resetPassword(params.get("token"), password);
       nav("/login", { replace: true });
     } catch (e) {
       setErr(e);

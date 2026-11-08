@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import date, timedelta
+from datetime import UTC, date, timedelta
 from html import escape
 
 from sqlalchemy import func, select
@@ -33,11 +33,11 @@ from app.integrations.email import (
     send_owner_email,
     system_credentials,
 )
+from app.integrations.storage import get_storage
 from app.services.excel import autosave_excel
 from app.services.messages import increment_text, rent_reminder_text, unit_label, upi_link
 from app.services.rent import apply_increment, ensure_entries, next_anniversary, refresh_statuses, rent_on
 from app.services.tenants import log_reminder
-from app.integrations.storage import get_storage
 from app.utils.formatting import fmt_date, inr, month_label
 
 log = logging.getLogger(__name__)
@@ -221,7 +221,7 @@ def _process_owner(db: Session, owner: Owner, today: date, s: JobSummary) -> Non
     for t in db.scalars(select(Tenant).where(
             Tenant.owner_id == owner.id, Tenant.status == TenantStatus.VACATED, Tenant.vacated_at <= cutoff,
             (Tenant.id_document_path.is_not(None)) | (Tenant.photo_path.is_not(None)))):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         for attr in ("id_document_path", "photo_path"):
             if getattr(t, attr):
@@ -231,7 +231,7 @@ def _process_owner(db: Session, owner: Owner, today: date, s: JobSummary) -> Non
                     s.errors.append(f"doc delete tenant {t.id}: {exc.__class__.__name__}")
                     continue
                 setattr(t, attr, None)
-        t.id_documents_deleted_at = datetime.now(timezone.utc)
+        t.id_documents_deleted_at = datetime.now(UTC)
         s.documents_deleted += 1
     db.commit()
 

@@ -147,7 +147,7 @@ export type WaItem = {
   effective_date?: string;
 };
 
-export type Dashboard = {
+export type SummaryData = {
   today: string;
   month: string;
   month_label: string;
@@ -158,28 +158,33 @@ export type Dashboard = {
     overdue_count: number;
     overdue_amount: number;
     active_tenants: number;
-  };
-  actions: {
-    due_today: WaItem[];
-    overdue: WaItem[];
-    pending_approvals: {
-      tenant_id: number;
-      tenant_name: string;
-      phone: string;
-      property_name: string | null;
-      unit_name: string | null;
-      created_at: string;
-    }[];
-    upcoming_increments: WaItem[];
-    expiring_agreements: {
-      tenant_id: number;
-      tenant_name: string;
-      unit_name: string | null;
-      end_date: string;
-      days_left: number;
-    }[];
+    deposits_held: number;
+    collected_12m: number;
+    expected_12m: number;
   };
   chart: { month: string; label: string; expected: number; collected: number }[];
+};
+
+export type ActionsData = {
+  today: string;
+  due_today: WaItem[];
+  overdue: WaItem[];
+  pending_approvals: {
+    tenant_id: number;
+    tenant_name: string;
+    phone: string;
+    property_name: string | null;
+    unit_name: string | null;
+    created_at: string;
+  }[];
+  upcoming_increments: WaItem[];
+  expiring_agreements: {
+    tenant_id: number;
+    tenant_name: string;
+    unit_name: string | null;
+    end_date: string;
+    days_left: number;
+  }[];
   gmail_configured: boolean;
   upi_configured: boolean;
 };

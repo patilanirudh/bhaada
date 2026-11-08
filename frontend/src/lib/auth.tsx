@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, refreshToken, setAccessToken, setLogoutHandler } from "./api";
+import { refreshToken, setAccessToken, setLogoutHandler } from "../api/client";
+import { authApi } from "../api/endpoints";
 import type { Owner } from "./types";
 
 type AuthCtx = {
@@ -21,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
 
   const reload = useCallback(async () => {
-    setOwner(await api<Owner>("/api/auth/me"));
+    setOwner(await authApi.me());
   }, []);
 
   useEffect(() => {
@@ -43,24 +44,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [reload]);
 
   const login = async (email: string, password: string) => {
-    const r = await api<{ access_token: string }>("/api/auth/login", {
-      method: "POST",
-      body: { email, password },
-      auth: false,
-    });
+    const r = await authApi.login(email, password);
     setAccessToken(r.access_token);
     await reload();
   };
 
   const register = async (data: { name: string; email: string; password: string; phone?: string }) => {
-    const r = await api<{ access_token: string }>("/api/auth/register", { method: "POST", body: data, auth: false });
+    const r = await authApi.register(data);
     setAccessToken(r.access_token);
     await reload();
   };
 
   const logout = async () => {
     try {
-      await api("/api/auth/logout", { method: "POST", auth: false });
+      await authApi.logout();
     } finally {
       setAccessToken(null);
       setOwner(null);

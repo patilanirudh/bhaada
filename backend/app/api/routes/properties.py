@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 from sqlalchemy import func, select
 
-from app.core.defaults import DEFAULT_HOUSE_RULES
 from app.api.deps import Scope
+from app.core.defaults import DEFAULT_HOUSE_RULES
+from app.core.errors import BadRequest
 from app.db.models import Property, Tenant, TenantStatus, Unit
 from app.schemas import PropertyIn, PropertyOut, UnitIn, UnitOut
 from app.services.audit import audit
@@ -57,7 +58,7 @@ def delete_property(property_id: int, scope: Scope):
         )
     )
     if active:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Vacate or reject the tenants of this property first")
+        raise BadRequest("Vacate or reject the tenants of this property first")
     audit(scope.db, scope.owner_id, "delete", "property", p.id, {"name": p.name})
     scope.db.delete(p)
     scope.db.commit()
@@ -93,7 +94,7 @@ def delete_unit(unit_id: int, scope: Scope):
         )
     )
     if occupied:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This unit has an active tenant")
+        raise BadRequest("This unit has an active tenant")
     audit(scope.db, scope.owner_id, "delete", "unit", u.id, {"name": u.name})
     scope.db.delete(u)
     scope.db.commit()

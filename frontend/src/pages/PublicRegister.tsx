@@ -1,24 +1,17 @@
 import { useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { api, ApiError } from "../lib/api";
+import { ApiError } from "../api/client";
+import { publicApi } from "../api/endpoints";
 import { sniffFile, validateAadhaar, validatePan, validatePhone } from "../lib/validate";
 import { Button, ErrorBox, Field, Input, PageLoader, Textarea } from "../components/ui";
 
-type Info = {
-  property_name: string;
-  property_address: string | null;
-  unit_name: string | null;
-  house_rules: string | null;
-  owner_name: string;
-  expires_at: string;
-};
 
 export default function PublicRegister() {
   const { token = "" } = useParams();
   const info = useQuery({
     queryKey: ["public-register", token],
-    queryFn: () => api<Info>(`/api/public/register/${token}`, { auth: false }),
+    queryFn: () => publicApi.linkInfo(token),
     retry: false,
   });
   const [f, setF] = useState({ full_name: "", phone: "", email: "", permanent_address: "", id_type: "AADHAAR", id_number: "", website: "" });
@@ -93,7 +86,7 @@ export default function PublicRegister() {
     if (photo) form.append("photo", photo);
     setBusy(true);
     try {
-      await api(`/api/public/register/${token}`, { method: "POST", form, auth: false });
+      await publicApi.register(token, form);
       setDone(true);
       window.scrollTo(0, 0);
     } catch (x) {
@@ -179,6 +172,16 @@ export default function PublicRegister() {
             <label>Website<input tabIndex={-1} autoComplete="off" value={f.website} onChange={set("website")} /></label>
           </div>
 
+          <details className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+            <summary className="cursor-pointer font-medium text-slate-700">How your data is used (privacy notice)</summary>
+            <ul className="mt-2 list-disc space-y-1 pl-4">
+              <li><b>Who sees it:</b> only {d.owner_name}, for renting this property. It is never sold or shared with anyone else.</li>
+              <li><b>What:</b> your name, contact details, address, ID number and ID document (and photo, if you add one).</li>
+              <li><b>Security:</b> your ID number is encrypted; the owner only sees its last 4 digits. Documents are stored privately and open only through short-lived links.</li>
+              <li><b>How long:</b> ID documents are deleted automatically 90 days after you move out (immediately if your registration is rejected).</li>
+              <li><b>Your rights:</b> you can ask {d.owner_name} to correct or erase your data after the tenancy ends.</li>
+            </ul>
+          </details>
           {d.house_rules && (
             <label className="flex gap-3 text-sm text-slate-700">
               <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" checked={rules} onChange={(e) => setRules(e.target.checked)} />

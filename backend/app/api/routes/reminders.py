@@ -1,10 +1,11 @@
 """WhatsApp two-tap reminders (wa.me links), queue mode and reminder logs."""
 from datetime import date, timedelta
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from app.api.deps import Scope
+from app.core.errors import BadRequest
 from app.db.models import (
     Channel,
     ReminderLog,
@@ -14,12 +15,12 @@ from app.db.models import (
     Tenant,
     TenantStatus,
 )
+from app.integrations.whatsapp import get_sender
 from app.schemas import ReminderLogOut, WhatsAppLogIn
 from app.services.audit import audit
 from app.services.messages import increment_text, rent_reminder_text, welcome_text
 from app.services.rent import next_anniversary, rent_on
 from app.services.tenants import log_reminder
-from app.integrations.whatsapp import get_sender
 from app.utils.formatting import today_ist
 
 router = APIRouter(prefix="/api/reminders", tags=["reminders"])
@@ -101,7 +102,7 @@ def whatsapp_queue(scope: Scope, kind: str = "due"):
     elif kind == "increment":
         items = increment_items(scope, today)
     else:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown queue")
+        raise BadRequest("Unknown queue")
     return {"kind": kind, "items": items}
 
 
@@ -114,7 +115,7 @@ def whatsapp_for_tenant(tenant_id: int, scope: Scope, kind: str = "rent"):
         e = scope.db.scalar(scope.select(RentEntry).where(
             RentEntry.tenant_id == t.id, RentEntry.status != RentStatus.PAID).order_by(RentEntry.due_date))
         if not e:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "No pending rent for this tenant")
+            raise BadRequest("No pending rent for this tenant")
         return wa_item(scope, t, rent_reminder_text(scope.db, scope.owner, t, e, today), rent_type(e, today),
                        e.month, {"rent_entry_id": e.id})
     if kind == "welcome":
@@ -122,9 +123,9 @@ def whatsapp_for_tenant(tenant_id: int, scope: Scope, kind: str = "rent"):
     if kind == "increment":
         items = [i for i in increment_items(scope, today) if i["tenant_id"] == t.id]
         if not items:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "No rent increase in the next 30 days")
+            raise BadRequest("No rent increase in the next 30 days")
         return items[0]
-    raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown message type")
+    raise BadRequest("Unknown message type")
 
 
 @router.post("/whatsapp/log", response_model=ReminderLogOut, status_code=201)

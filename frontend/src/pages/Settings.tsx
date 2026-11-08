@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "../lib/api";
+import { ApiError } from "../api/client";
+import { authApi, settingsApi } from "../api/endpoints";
 import { useAuth } from "../lib/auth";
-import type { Owner } from "../lib/types";
 import RichTextEditor from "../components/RichTextEditor";
 import { Badge, Button, Card, ErrorBox, Field, Input, PageHeader, PageLoader, Select, Textarea, errMsg, useToast } from "../components/ui";
 
@@ -24,7 +24,7 @@ function Profile() {
   const [f, setF] = useState({ name: owner!.name, phone: owner!.phone ?? "", upi_id: owner!.upi_id ?? "", preferred_language: owner!.preferred_language });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const m = useMutation({
-    mutationFn: () => api<Owner>("/api/settings/profile", { method: "PUT", body: f }),
+    mutationFn: () => settingsApi.updateProfile(f),
     onSuccess: (o) => { setOwner(o); setErrors({}); toast("Profile saved"); },
     onError: (e) => e instanceof ApiError && setErrors(e.errors),
   });
@@ -52,16 +52,16 @@ function Gmail() {
   const [address, setAddress] = useState(owner!.gmail_address ?? "");
   const [pw, setPw] = useState("");
   const save = useMutation({
-    mutationFn: () => api<Owner>("/api/settings/gmail", { method: "PUT", body: { gmail_address: address, app_password: pw } }),
+    mutationFn: () => settingsApi.saveGmail(address, pw),
     onSuccess: (o) => { setOwner(o); setPw(""); toast("Gmail saved. Send a test email to check."); },
   });
   const test = useMutation({
-    mutationFn: () => api<{ detail: string }>("/api/settings/gmail/test", { method: "POST" }),
+    mutationFn: () => settingsApi.testEmail(),
     onSuccess: (r) => toast(r.detail),
     onError: (e) => toast(errMsg(e), "err"),
   });
   const remove = useMutation({
-    mutationFn: () => api<Owner>("/api/settings/gmail", { method: "DELETE" }),
+    mutationFn: () => settingsApi.removeGmail(),
     onSuccess: (o) => { setOwner(o); setAddress(""); toast("Gmail disconnected"); },
   });
   return (
@@ -102,7 +102,7 @@ function HouseRules() {
   const [rules, setRules] = useState(owner!.default_house_rules);
   const [applyAll, setApplyAll] = useState(false);
   const m = useMutation({
-    mutationFn: () => api<Owner>("/api/settings/house-rules", { method: "PUT", body: { house_rules: rules, apply_to_all_properties: applyAll } }),
+    mutationFn: () => settingsApi.saveHouseRules(rules, applyAll),
     onSuccess: (o) => { setOwner(o); toast(applyAll ? "Rules saved and applied to all properties" : "Default rules saved"); setApplyAll(false); },
   });
   return (
@@ -123,7 +123,7 @@ function Password() {
   const [cur, setCur] = useState("");
   const [nw, setNw] = useState("");
   const m = useMutation({
-    mutationFn: () => api("/api/auth/change-password", { method: "POST", body: { current_password: cur, new_password: nw } }),
+    mutationFn: () => authApi.changePassword(cur, nw),
     onSuccess: () => { setCur(""); setNw(""); toast("Password changed"); },
   });
   return (
@@ -138,24 +138,23 @@ function Password() {
   );
 }
 
-type Tpl = { kind: string; language: string; body: string; is_custom: boolean };
 
 function Templates() {
   const qc = useQueryClient();
   const toast = useToast();
   const { data, isLoading } = useQuery({
     queryKey: ["templates"],
-    queryFn: () => api<{ kinds: Record<string, string>; placeholders: string[]; templates: Tpl[] }>("/api/settings/templates"),
+    queryFn: settingsApi.templates,
   });
   const [lang, setLang] = useState<"en" | "hi">("en");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const save = useMutation({
-    mutationFn: (t: { kind: string; body: string }) => api("/api/settings/templates", { method: "PUT", body: { ...t, language: lang } }),
+    mutationFn: (t: { kind: string; body: string }) => settingsApi.saveTemplate(t.kind, lang, t.body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast("Template saved"); },
     onError: (e) => toast(errMsg(e), "err"),
   });
   const reset = useMutation({
-    mutationFn: (kind: string) => api(`/api/settings/templates/${kind}/${lang}`, { method: "DELETE" }),
+    mutationFn: (kind: string) => settingsApi.resetTemplate(kind, lang),
     onSuccess: (_, kind) => { setDrafts((d) => { const n = { ...d }; delete n[`${kind}:${lang}`]; return n; }); qc.invalidateQueries({ queryKey: ["templates"] }); toast("Reset to default"); },
   });
   if (isLoading || !data) return <PageLoader />;

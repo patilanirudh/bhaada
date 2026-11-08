@@ -1,19 +1,12 @@
-from fastapi import APIRouter, HTTPException, Request, Response, status
+import logging
+
+from fastapi import APIRouter, Request, Response
 from sqlalchemy import func, select
 
+from app.api.deps import DB, CurrentOwner, client_ip
 from app.core.config import get_settings
 from app.core.defaults import DEFAULT_HOUSE_RULES
-from app.api.deps import DB, CurrentOwner
-from app.db.models import Owner
-from app.schemas import (
-    ChangePasswordIn,
-    ForgotIn,
-    LoginIn,
-    OwnerOut,
-    RegisterIn,
-    ResetIn,
-    TokenOut,
-)
+from app.core.errors import BadRequest, Conflict, RateLimited, Unauthorized
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -23,10 +16,21 @@ from app.core.security import (
     password_fingerprint,
     verify_password,
 )
-from app.services.audit import audit
+from app.db.models import Owner
 from app.integrations.email import EmailError, send_email, system_credentials
+from app.schemas import (
+    ChangePasswordIn,
+    ForgotIn,
+    LoginIn,
+    OwnerOut,
+    RegisterIn,
+    ResetIn,
+    TokenOut,
+)
+from app.services.audit import audit
 from app.utils.ratelimit import limiter
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 REFRESH_COOKIE = "refresh_token"
 
@@ -51,18 +55,12 @@ def _set_refresh(response: Response, owner: Owner) -> None:
     )
 
 
-def _client_ip(request: Request) -> str:
-    fwd = request.headers.get("x-forwarded-for")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
-
 
 @router.post("/register", response_model=TokenOut, status_code=201)
 def register(body: RegisterIn, response: Response, db: DB):
     email = body.email.lower()
     if db.scalar(select(Owner).where(func.lower(Owner.email) == email)):
-        raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists")
+        raise Conflict("An account with this email already exists")
     owner = Owner(name=body.name.strip(), email=email, password_hash=hash_password(body.password), phone=body.phone)
     db.add(owner)
     db.flush()
@@ -74,11 +72,13 @@ def register(body: RegisterIn, response: Response, db: DB):
 
 @router.post("/login", response_model=TokenOut)
 def login(body: LoginIn, request: Request, response: Response, db: DB):
-    if not limiter.allow(f"login:{_client_ip(request)}", 20, 900):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many login attempts. Try again later.")
+    # Per-IP and per-account limits (the latter blocks guessing spread across many IPs).
+    if not (limiter.allow(f"login:{client_ip(request)}", 20, 900)
+            and limiter.allow(f"login-acct:{body.email.lower()}", 10, 900)):
+        raise RateLimited("Too many login attempts. Try again in 15 minutes.")
     owner = db.scalar(select(Owner).where(func.lower(Owner.email) == body.email.lower()))
     if not owner or not verify_password(body.password, owner.password_hash):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
+        raise Unauthorized("Incorrect email or password")
     _set_refresh(response, owner)
     return TokenOut(access_token=create_access_token(owner.id))
 
@@ -88,10 +88,10 @@ def refresh(request: Request, response: Response, db: DB):
     token = request.cookies.get(REFRESH_COOKIE)
     data = decode_token(token, "refresh") if token else None
     if not data:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not logged in")
+        raise Unauthorized("Not logged in")
     owner = db.get(Owner, int(data["sub"]))
     if not owner or owner.token_version != data.get("tv"):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session ended, please log in again")
+        raise Unauthorized("Session ended, please log in again")
     _set_refresh(response, owner)  # rotate
     return TokenOut(access_token=create_access_token(owner.id))
 
@@ -119,7 +119,7 @@ def me(owner: CurrentOwner):
 @router.post("/forgot-password")
 def forgot_password(body: ForgotIn, request: Request, db: DB):
     generic = {"detail": "If that email is registered, a reset link has been sent."}
-    if not limiter.allow(f"forgot:{_client_ip(request)}", 5, 3600):
+    if not limiter.allow(f"forgot:{client_ip(request)}", 5, 3600):
         return generic
     owner = db.scalar(select(Owner).where(func.lower(Owner.email) == body.email.lower()))
     if owner:
@@ -133,7 +133,7 @@ def forgot_password(body: ForgotIn, request: Request, db: DB):
         try:
             send_email(system_credentials(), owner.email, "Reset your Rent Manager password", text)
         except EmailError:
-            pass
+            log.warning("Password reset email could not be sent")  # response stays generic either way
     return generic
 
 
@@ -142,7 +142,7 @@ def reset_password(body: ResetIn, db: DB):
     data = decode_token(body.token, "reset")
     owner = db.get(Owner, int(data["sub"])) if data else None
     if not owner or data.get("pwf") != password_fingerprint(owner.password_hash):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This reset link is invalid or has already been used")
+        raise BadRequest("This reset link is invalid or has already been used")
     owner.password_hash = hash_password(body.password)
     owner.token_version += 1
     audit(db, owner.id, "update", "owner", owner.id, {"field": "password_reset"})
@@ -153,7 +153,7 @@ def reset_password(body: ResetIn, db: DB):
 @router.post("/change-password")
 def change_password(body: ChangePasswordIn, response: Response, owner: CurrentOwner, db: DB):
     if not verify_password(body.current_password, owner.password_hash):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Current password is incorrect")
+        raise BadRequest("Current password is incorrect")
     owner.password_hash = hash_password(body.new_password)
     owner.token_version += 1
     audit(db, owner.id, "update", "owner", owner.id, {"field": "password"})

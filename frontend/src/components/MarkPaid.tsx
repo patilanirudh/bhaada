@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, openSigned } from "../lib/api";
+import { openSigned } from "../api/client";
+import { rentApi } from "../api/endpoints";
 import { inr, monthLabel, todayISO } from "../lib/format";
 import type { RentEntry } from "../lib/types";
 import { Button, ErrorBox, Field, Input, Modal, Select, useToast } from "./ui";
@@ -24,12 +25,9 @@ function MarkPaidForm({ entry, onDone }: { entry: RentEntry; onDone: () => void 
   const [sendReceipt, setSendReceipt] = useState(true);
   const m = useMutation({
     mutationFn: () =>
-      api<RentEntry>(`/api/rent/entries/${entry.id}/payments`, {
-        method: "POST",
-        body: { amount: Number(amount), paid_on: paidOn, mode, reference: reference || null, send_receipt: sendReceipt },
-      }),
+      rentApi.pay(entry.id, { amount: Number(amount), paid_on: paidOn, mode, reference: reference || null, send_receipt: sendReceipt }),
     onSuccess: (e) => {
-      ["dashboard", "entries", "ledger", "tenants", "payments", "tenant"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+      ["actions", "summary", "entries", "ledger", "tenants", "payments", "tenant"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       toast(e.status === "PAID" ? "Marked as paid. Receipt generated." : "Partial payment saved. Receipt generated.");
       onDone();
     },
@@ -78,7 +76,7 @@ export function ReceiptLink({ paymentId }: { paymentId: number }) {
   return (
     <button
       className="text-xs font-medium text-brand-700 hover:underline"
-      onClick={() => openSigned(`/api/rent/payments/${paymentId}/receipt-url`).catch((e) => toast(e.message, "err"))}
+      onClick={() => openSigned(rentApi.receiptUrlPath(paymentId)).catch((e) => toast(e.message, "err"))}
     >
       Receipt
     </button>

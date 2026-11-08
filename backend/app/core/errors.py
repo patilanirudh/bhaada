@@ -41,3 +41,7 @@ class ValidationFailed(AppError):
 
 class RateLimited(AppError):
     status_code = 429
+
+
+class ServerError(AppError):
+    status_code = 500

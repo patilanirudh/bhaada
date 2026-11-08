@@ -22,8 +22,8 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app.db import session as database  # noqa: E402
 from app.db.session import Base, get_db  # noqa: E402
-from app.main import app  # noqa: E402
 from app.integrations import email as email_service  # noqa: E402
+from app.main import app  # noqa: E402
 from app.utils.formatting import set_today_override  # noqa: E402
 from app.utils.ratelimit import limiter  # noqa: E402
 from app.utils.validators import verhoeff_check_digit  # noqa: E402

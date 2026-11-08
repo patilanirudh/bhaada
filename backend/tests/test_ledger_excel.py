@@ -115,6 +115,8 @@ def test_whatsapp_links_and_dashboard(client, owner_a):
     assert r.status_code == 201
     q = client.get("/api/reminders/whatsapp/queue?kind=due", headers=owner_a).json()["items"]
     assert q[0]["last_whatsapp_on"] == "2026-11-07"
-    d = client.get("/api/dashboard", headers=owner_a).json()
+    d = client.get("/api/dashboard/summary", headers=owner_a).json()
     assert d["cards"]["expected"] == 15750 and d["cards"]["pending"] == 15750
-    assert len(d["chart"]) == 12 and len(d["actions"]["overdue"]) == 1
+    assert d["cards"]["deposits_held"] == 30000 and len(d["chart"]) == 12
+    a = client.get("/api/dashboard/actions", headers=owner_a).json()
+    assert len(a["overdue"]) == 1 and a["overdue"][0]["tenant_name"] == "Ravi Kumar"

@@ -3,13 +3,14 @@ import { useAuth } from "../lib/auth";
 
 const nav = [
   { to: "/", label: "Home", icon: "🏠", end: true },
+  { to: "/dashboard", label: "Dashboard", icon: "📊" },
   { to: "/tenants", label: "Tenants", icon: "👥" },
   { to: "/payments", label: "Payments", icon: "₹" },
   { to: "/properties", label: "Properties", icon: "🏢" },
   { to: "/links", label: "Links", icon: "🔗" },
   { to: "/settings", label: "Settings", icon: "⚙️" },
 ];
-const mobileNav = nav.filter((n) => ["/", "/tenants", "/payments", "/properties", "/settings"].includes(n.to));
+const mobileNav = nav.filter((n) => ["/", "/dashboard", "/tenants", "/payments", "/settings"].includes(n.to));
 
 export default function Layout() {
   const { owner, logout } = useAuth();
@@ -53,9 +54,10 @@ export default function Layout() {
           <img src="/favicon.svg" alt="" className="h-7 w-7" />
           <span className="font-bold text-slate-900">Rent Manager</span>
         </div>
-        <NavLink to="/links" className="rounded-lg px-2 py-1 text-sm font-medium text-brand-700">
-          🔗 Links
-        </NavLink>
+        <div className="flex gap-1">
+          <NavLink to="/properties" className="rounded-lg px-2 py-1 text-sm font-medium text-brand-700">🏢 Properties</NavLink>
+          <NavLink to="/links" className="rounded-lg px-2 py-1 text-sm font-medium text-brand-700">🔗 Links</NavLink>
+        </div>
       </header>
 
       <main className="px-4 pb-24 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-8">

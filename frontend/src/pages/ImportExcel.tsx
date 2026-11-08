@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, download } from "../lib/api";
+import { download } from "../api/client";
+import { excelApi } from "../api/endpoints";
 import { fmtDate, inr } from "../lib/format";
 import { Button, Card, ErrorBox, PageHeader, Select, errMsg, useToast } from "../components/ui";
 
@@ -24,18 +25,18 @@ export default function ImportExcel() {
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
-  const run = async (path: string, f: File, map?: Record<string, string | null>) => {
+  const toForm = (f: File, map?: Record<string, string | null>) => {
     const form = new FormData();
     form.append("file", f);
     if (map) form.append("mapping", JSON.stringify(map));
-    return api<any>(path, { method: "POST", form });
+    return form;
   };
 
   const loadPreview = async (f: File, map?: Record<string, string | null>) => {
     setBusy(true);
     setErr(null);
     try {
-      const p: Preview = await run("/api/excel/import/preview", f, map);
+      const p: Preview = await excelApi.preview(toForm(f, map));
       setPreview(p);
       setMapping(p.mapping);
     } catch (e) {
@@ -50,7 +51,7 @@ export default function ImportExcel() {
     if (!file) return;
     setBusy(true);
     try {
-      const r = await run("/api/excel/import/commit", file, mapping);
+      const r = await excelApi.commit(toForm(file, mapping));
       toast(`Imported ${r.imported} tenants${r.skipped ? `, skipped ${r.skipped} rows with errors` : ""}`);
       qc.invalidateQueries();
       nav("/tenants");
@@ -64,7 +65,7 @@ export default function ImportExcel() {
   return (
     <div>
       <PageHeader title="Import tenants from Excel" subtitle="Upload your existing sheet. We'll match the columns, show a preview and import valid rows."
-        actions={<Button variant="secondary" onClick={() => download("/api/excel/template", "tenant-import-template.xlsx").catch((e) => toast(errMsg(e), "err"))}>⬇ Blank template</Button>} />
+        actions={<Button variant="secondary" onClick={() => download(excelApi.templatePath, "tenant-import-template.xlsx").catch((e) => toast(errMsg(e), "err"))}>⬇ Blank template</Button>} />
       <Card className="mb-4">
         <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); if (f) loadPreview(f); }}

@@ -4,6 +4,7 @@ import Layout from "./components/Layout";
 import { PageLoader } from "./components/ui";
 import { useAuth } from "./lib/auth";
 import { ForgotPassword, Login, Register, ResetPassword } from "./pages/AuthPages";
+const Home = lazy(() => import("./pages/Home"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Properties = lazy(() => import("./pages/Properties"));
 const Tenants = lazy(() => import("./pages/Tenants"));
@@ -40,7 +41,8 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<Protected><Layout /></Protected>}>
-        <Route index element={<Dashboard />} />
+        <Route index element={<Home />} />
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="tenants" element={<Tenants />} />
         <Route path="tenants/:id" element={<TenantDetail />} />
         <Route path="payments" element={<Payments />} />

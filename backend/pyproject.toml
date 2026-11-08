@@ -1,0 +1,26 @@
+[project]
+name = "rent-manager-backend"
+version = "1.0.0"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, bugbear, pyupgrade, bandit (security), simplify
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM"]
+ignore = [
+  "B008",   # FastAPI Depends()/File() in defaults is idiomatic
+  "S101",   # assert is fine in tests
+  "S105", "S106",  # false positives on names like *_token / *_password
+  "SIM108",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from app.db.models import RegistrationLink, Tenant
 from app.core.security import decrypt
+from app.db.models import RegistrationLink, Tenant
 from app.integrations import email as email_service
 from tests.conftest import PDF, PNG, make_property, valid_aadhaar
 
@@ -79,7 +79,7 @@ def test_link_max_uses(client, owner_a):
 def test_link_expiry(client, owner_a, db):
     link = _link(client, owner_a)
     row = db.get(RegistrationLink, link["id"])
-    row.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    row.expires_at = datetime.now(UTC) - timedelta(minutes=1)
     db.commit()
     r = client.get(f"/api/public/register/{link['token']}")
     assert r.status_code == 410 and "expired" in r.json()["detail"]
@@ -97,7 +97,8 @@ def test_validation_errors(client, owner_a, db):
     link = _link(client, owner_a, max_uses=10)
     tok = link["token"]
     bad_aadhaar = valid_aadhaar()[:-1] + str((int(valid_aadhaar()[-1]) + 1) % 10)
-    assert client.post(f"/api/public/register/{tok}", data=_form(id_number=bad_aadhaar), files=_files()).status_code == 422
+    r = client.post(f"/api/public/register/{tok}", data=_form(id_number=bad_aadhaar), files=_files())
+    assert r.status_code == 422
     assert client.post(f"/api/public/register/{tok}", data=_form(id_type="PAN", id_number="ABC12"),
                        files=_files()).status_code == 422
     assert client.post(f"/api/public/register/{tok}", data=_form(consent="false"), files=_files()).status_code == 422

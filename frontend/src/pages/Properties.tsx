@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { propertiesApi } from "../api/endpoints";
 import { inr } from "../lib/format";
 import type { Property, Unit } from "../lib/types";
 import { useAuth } from "../lib/auth";
@@ -17,10 +17,7 @@ function PropertyForm({ initial, onDone }: { initial?: Property; onDone: () => v
   const [rules, setRules] = useState(initial?.house_rules ?? owner?.default_house_rules ?? "");
   const m = useMutation({
     mutationFn: () =>
-      api(initial ? `/api/properties/${initial.id}` : "/api/properties", {
-        method: initial ? "PUT" : "POST",
-        body: { name, address, house_rules: rules },
-      }),
+      propertiesApi.save(initial?.id, { name, address, house_rules: rules }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["properties"] });
       toast(initial ? "Property updated" : "Property added");
@@ -54,10 +51,7 @@ function UnitForm({ propertyId, unit, onDone }: { propertyId: number; unit?: Uni
   const [rent, setRent] = useState(String(unit?.default_rent ?? ""));
   const m = useMutation({
     mutationFn: () =>
-      api(unit ? `/api/properties/units/${unit.id}` : `/api/properties/${propertyId}/units`, {
-        method: unit ? "PUT" : "POST",
-        body: { name, default_rent: Number(rent || 0) },
-      }),
+      propertiesApi.saveUnit(propertyId, unit?.id, { name, default_rent: Number(rent || 0) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["properties"] });
       onDone();
@@ -76,12 +70,12 @@ function UnitForm({ propertyId, unit, onDone }: { propertyId: number; unit?: Uni
 export default function Properties() {
   const qc = useQueryClient();
   const toast = useToast();
-  const { data, isLoading, error } = useQuery({ queryKey: ["properties"], queryFn: () => api<Property[]>("/api/properties") });
+  const { data, isLoading, error } = useQuery({ queryKey: ["properties"], queryFn: propertiesApi.list });
   const [editing, setEditing] = useState<Property | "new" | null>(null);
   const [unitModal, setUnitModal] = useState<{ propertyId: number; unit?: Unit } | null>(null);
 
   const del = useMutation({
-    mutationFn: (path: string) => api(path, { method: "DELETE" }),
+    mutationFn: (d: { property?: number; unit?: number }) => (d.unit ? propertiesApi.removeUnit(d.unit) : propertiesApi.remove(d.property!)),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["properties"] }); toast("Deleted"); },
     onError: (e) => toast(errMsg(e), "err"),
   });
@@ -105,7 +99,7 @@ export default function Properties() {
               <div className="flex gap-1">
                 <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>Edit</Button>
                 <Button size="sm" variant="ghost" className="text-red-600"
-                  onClick={() => confirm(`Delete ${p.name}?`) && del.mutate(`/api/properties/${p.id}`)}>Delete</Button>
+                  onClick={() => confirm(`Delete ${p.name}?`) && del.mutate({ property: p.id })}>Delete</Button>
               </div>
             </div>
             <div className="mt-3">
@@ -120,7 +114,7 @@ export default function Properties() {
                     <span className="flex gap-1">
                       <button className="text-xs text-brand-700 hover:underline" onClick={() => setUnitModal({ propertyId: p.id, unit: u })}>Edit</button>
                       <button className="ml-2 text-xs text-red-600 hover:underline"
-                        onClick={() => confirm(`Delete ${u.name}?`) && del.mutate(`/api/properties/units/${u.id}`)}>Delete</button>
+                        onClick={() => confirm(`Delete ${u.name}?`) && del.mutate({ unit: u.id })}>Delete</button>
                     </span>
                   </li>
                 ))}

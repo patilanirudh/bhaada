@@ -1,15 +1,16 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.api.deps import Scope
-from app.db.models import MessageTemplate, Property
-from app.utils.sanitize import sanitize_html
 from app.api.routes.auth import owner_out
-from app.schemas import GmailIn, HouseRulesIn, OwnerOut, OwnerUpdate, TemplateIn, TemplateOut
+from app.core.errors import BadRequest, NotFound
 from app.core.security import encrypt
-from app.services.audit import audit
+from app.db.models import MessageTemplate, Property
 from app.integrations.email import EmailError, send_owner_email
+from app.schemas import GmailIn, HouseRulesIn, OwnerOut, OwnerUpdate, TemplateIn, TemplateOut
+from app.services.audit import audit
 from app.services.templates import DEFAULTS, KINDS, PLACEHOLDERS
+from app.utils.sanitize import sanitize_html
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -69,7 +70,7 @@ def test_gmail(scope: Scope):
                          f"Hi {owner.name},\n\nEmail is working. Rent reminders and receipts will be sent from "
                          f"{owner.gmail_address or 'the Rent Manager system Gmail'}.")
     except EmailError as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+        raise BadRequest(str(e)) from e
     return {"detail": f"Test email sent to {owner.email}"}
 
 
@@ -91,7 +92,7 @@ def list_templates(scope: Scope):
 @router.put("/templates", response_model=TemplateOut)
 def save_template(body: TemplateIn, scope: Scope):
     if body.kind not in KINDS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown template")
+        raise BadRequest("Unknown template")
     t = scope.db.scalar(select(MessageTemplate).where(
         MessageTemplate.owner_id == scope.owner_id, MessageTemplate.kind == body.kind,
         MessageTemplate.language == body.language))
@@ -107,7 +108,7 @@ def save_template(body: TemplateIn, scope: Scope):
 @router.delete("/templates/{kind}/{language}", response_model=TemplateOut)
 def reset_template(kind: str, language: str, scope: Scope):
     if kind not in KINDS or language not in ("en", "hi"):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown template")
+        raise NotFound("Unknown template")
     t = scope.db.scalar(select(MessageTemplate).where(
         MessageTemplate.owner_id == scope.owner_id, MessageTemplate.kind == kind,
         MessageTemplate.language == language))

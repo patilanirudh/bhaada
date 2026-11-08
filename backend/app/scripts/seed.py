@@ -3,14 +3,14 @@
 Run:  python -m app.scripts.seed          (after `alembic upgrade head`)
 Login: demo@rentmanager.in / demo12345
 """
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import select
 
-from app.db import session as database
 from app.core.defaults import DEFAULT_HOUSE_RULES
-from app.db.models import Owner, Payment, Property, RentEntry, Tenant, TenantStatus, Unit
 from app.core.security import encrypt, hash_password
+from app.db import session as database
+from app.db.models import Owner, Payment, Property, RentEntry, Tenant, TenantStatus, Unit
 from app.services.rent import compute_status, create_entry, ensure_entries, month_str, rent_on
 from app.utils.formatting import today_ist
 from app.utils.validators import verhoeff_check_digit
@@ -57,7 +57,7 @@ def run() -> None:
                    id_number_encrypted=encrypt(id_num), id_last4=id_num[-4:], security_deposit=rent * 2,
                    agreement_start_date=start, agreement_end_date=end, base_rent=rent, rent_base_date=start,
                    increment_percent=5.0, due_day=due_day, status=status,
-                   consent_given_at=datetime.now(timezone.utc))
+                   consent_given_at=datetime.now(UTC))
         t.current_rent = rent_on(t, today)
         db.add(t)
         db.flush()

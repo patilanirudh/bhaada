@@ -1,16 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, openSigned } from "../lib/api";
+import { openSigned } from "../api/client";
+import { propertiesApi, rentApi, tenantsApi } from "../api/endpoints";
 import { addYearsISO, fmtDate, inr, monthLabel, phoneDisplay, todayISO } from "../lib/format";
-import type { Property, ReminderLog, RentEntry, RentHistory, Settlement, Tenant } from "../lib/types";
+import type { Property, RentEntry, Tenant } from "../lib/types";
 import { MarkPaidModal, ReceiptLink } from "../components/MarkPaid";
 import { TenantWhatsAppButton } from "../components/WhatsApp";
 import { Badge, Button, Card, ErrorBox, Field, Input, Modal, PageLoader, Select, Textarea, errMsg, useToast } from "../components/ui";
 
 function useInvalidate() {
   const qc = useQueryClient();
-  return () => ["tenant", "tenants", "ledger", "dashboard", "history", "reminders"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  return () => ["tenant", "tenants", "ledger", "actions", "summary", "history", "reminders"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
 }
 
 function Info({ label, children }: { label: string; children: ReactNode }) {
@@ -40,18 +41,15 @@ function ApproveForm({ t, properties }: { t: Tenant; properties: Property[] }) {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const approve = useMutation({
     mutationFn: () =>
-      api(`/api/tenants/${t.id}/approve`, {
-        method: "POST",
-        body: {
+      tenantsApi.approve(t.id, {
           unit_id: Number(f.unit_id), base_rent: Number(f.base_rent), security_deposit: Number(f.security_deposit || 0),
           agreement_start_date: f.agreement_start_date, agreement_end_date: f.agreement_end_date || null,
           due_day: Number(f.due_day), increment_percent: Number(f.increment_percent),
-        },
-      }),
+        }),
     onSuccess: () => { inv(); toast("Tenant approved. Welcome email sent."); },
   });
   const reject = useMutation({
-    mutationFn: () => api(`/api/tenants/${t.id}/reject`, { method: "POST" }),
+    mutationFn: () => tenantsApi.reject(t.id),
     onSuccess: () => { inv(); toast("Registration rejected and ID documents deleted"); },
     onError: (e) => toast(errMsg(e), "err"),
   });
@@ -94,11 +92,8 @@ function EditModal({ t, properties, onClose }: { t: Tenant; properties: Property
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
   const m = useMutation({
-    mutationFn: () => api(`/api/tenants/${t.id}`, {
-      method: "PATCH",
-      body: { ...f, email: f.email || null, unit_id: f.unit_id ? Number(f.unit_id) : null, security_deposit: Number(f.security_deposit),
-        due_day: Number(f.due_day), increment_percent: Number(f.increment_percent) },
-    }),
+    mutationFn: () => tenantsApi.update(t.id, { ...f, email: f.email || null, unit_id: f.unit_id ? Number(f.unit_id) : null, security_deposit: Number(f.security_deposit),
+        due_day: Number(f.due_day), increment_percent: Number(f.increment_percent) }),
     onSuccess: () => { inv(); onClose(); },
   });
   return (
@@ -123,14 +118,14 @@ function EditModal({ t, properties, onClose }: { t: Tenant; properties: Property
   );
 }
 
-function SimpleMutationForm({ label, field, type, initial, path, button, hint, onClose }: {
-  label: string; field: string; type: string; initial: string; path: string; button: string; hint?: string; onClose: () => void;
+function SimpleMutationForm({ label, type, initial, submit, button, hint, onClose }: {
+  label: string; type: string; initial: string; submit: (value: string) => Promise<unknown>; button: string; hint?: string; onClose: () => void;
 }) {
   const inv = useInvalidate();
   const toast = useToast();
   const [v, setV] = useState(initial);
   const m = useMutation({
-    mutationFn: () => api(path, { method: "POST", body: { [field]: type === "number" ? Number(v) : v } }),
+    mutationFn: () => submit(v),
     onSuccess: () => { inv(); toast("Saved"); onClose(); },
   });
   return (
@@ -154,11 +149,11 @@ function VacateForm({ t, onClose }: { t: Tenant; onClose: () => void }) {
   });
   const preview = useQuery({
     queryKey: ["settlement-preview", t.id, date, JSON.stringify(deductions)],
-    queryFn: () => api<Settlement>(`/api/tenants/${t.id}/settlement-preview`, { method: "POST", body: body() }),
+    queryFn: () => tenantsApi.settlementPreview(t.id, body()),
     enabled: !!date,
   });
   const m = useMutation({
-    mutationFn: () => api(`/api/tenants/${t.id}/vacate`, { method: "POST", body: body() }),
+    mutationFn: () => tenantsApi.vacate(t.id, body()),
     onSuccess: () => { inv(); toast("Tenant vacated. Settlement PDF ready."); onClose(); },
   });
   const s = preview.data;
@@ -199,11 +194,11 @@ export default function TenantDetail() {
   const toast = useToast();
   const inv = useInvalidate();
   const tid = Number(id);
-  const t = useQuery({ queryKey: ["tenant", tid], queryFn: () => api<Tenant>(`/api/tenants/${tid}`) });
-  const props = useQuery({ queryKey: ["properties"], queryFn: () => api<Property[]>("/api/properties") });
-  const ledger = useQuery({ queryKey: ["ledger", tid], queryFn: () => api<RentEntry[]>(`/api/tenants/${tid}/ledger`), enabled: !!t.data });
-  const history = useQuery({ queryKey: ["history", tid], queryFn: () => api<RentHistory[]>(`/api/tenants/${tid}/rent-history`), enabled: !!t.data });
-  const logs = useQuery({ queryKey: ["reminders", tid], queryFn: () => api<ReminderLog[]>(`/api/tenants/${tid}/reminders`), enabled: !!t.data });
+  const t = useQuery({ queryKey: ["tenant", tid], queryFn: () => tenantsApi.get(tid) });
+  const props = useQuery({ queryKey: ["properties"], queryFn: propertiesApi.list });
+  const ledger = useQuery({ queryKey: ["ledger", tid], queryFn: () => tenantsApi.ledger(tid), enabled: !!t.data });
+  const history = useQuery({ queryKey: ["history", tid], queryFn: () => tenantsApi.history(tid), enabled: !!t.data });
+  const logs = useQuery({ queryKey: ["reminders", tid], queryFn: () => tenantsApi.reminders(tid), enabled: !!t.data });
   const [modal, setModal] = useState<"edit" | "rent" | "renew" | "vacate" | null>(null);
   const [paying, setPaying] = useState<RentEntry | null>(null);
 
@@ -212,13 +207,18 @@ export default function TenantDetail() {
   }, [params, setParams]);
 
   const delPayment = useMutation({
-    mutationFn: (pid: number) => api(`/api/rent/payments/${pid}`, { method: "DELETE" }),
+    mutationFn: (pid: number) => rentApi.deletePayment(pid),
     onSuccess: () => { inv(); toast("Payment deleted"); },
     onError: (e) => toast(errMsg(e), "err"),
   });
   const delDocs = useMutation({
-    mutationFn: () => api(`/api/tenants/${tid}/documents`, { method: "DELETE" }),
+    mutationFn: () => tenantsApi.deleteDocuments(tid),
     onSuccess: () => { inv(); toast("ID documents deleted"); },
+    onError: (e) => toast(errMsg(e), "err"),
+  });
+  const erase = useMutation({
+    mutationFn: () => tenantsApi.erase(tid),
+    onSuccess: () => { inv(); toast("Personal data erased"); },
     onError: (e) => toast(errMsg(e), "err"),
   });
   const open = (path: string) => openSigned(path).catch((e) => toast(errMsg(e), "err"));
@@ -264,12 +264,20 @@ export default function TenantDetail() {
             <div className="col-span-2"><Info label="Permanent address">{x.permanent_address ?? "—"}</Info></div>
           </dl>
           <div className="mt-3 flex flex-wrap gap-2">
-            {x.has_id_document && <Button size="sm" variant="secondary" onClick={() => open(`/api/tenants/${x.id}/document-url`)}>View ID document</Button>}
-            {x.has_photo && <Button size="sm" variant="secondary" onClick={() => open(`/api/tenants/${x.id}/photo-url`)}>View photo</Button>}
+            {x.has_id_document && <Button size="sm" variant="secondary" onClick={() => open(tenantsApi.documentUrlPath(x.id))}>View ID document</Button>}
+            {x.has_photo && <Button size="sm" variant="secondary" onClick={() => open(tenantsApi.photoUrlPath(x.id))}>View photo</Button>}
             {(x.status === "VACATED" || x.status === "REJECTED") && (x.has_id_document || x.has_photo) && (
               <Button size="sm" variant="danger" loading={delDocs.isPending} onClick={() => confirm("Permanently delete the ID document and photo?") && delDocs.mutate()}>Delete ID documents</Button>
             )}
           </div>
+          {(x.status === "VACATED" || x.status === "REJECTED") && !x.full_name.startsWith("Erased tenant") && (
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <Button size="sm" variant="ghost" className="text-red-600" loading={erase.isPending}
+                onClick={() => confirm("Erase this person's name, phone, email, address, ID and documents permanently? Rent and payment records are kept without their identity.") && erase.mutate()}>
+                Erase personal data (privacy request)
+              </Button>
+            </div>
+          )}
           {x.status === "VACATED" && (x.has_id_document || x.has_photo) && (
             <p className="mt-2 text-xs text-slate-500">ID documents are deleted automatically 90 days after move-out.</p>
           )}
@@ -299,7 +307,7 @@ export default function TenantDetail() {
               <h2 className="font-semibold text-slate-900">Deposit settlement</h2>
               <p className="text-sm text-slate-600">Vacated {fmtDate(x.vacated_at)} · {x.settlement.refund >= 0 ? `Refund ${inr(x.settlement.refund)}` : `Tenant owes ${inr(-x.settlement.refund)}`}</p>
             </div>
-            {x.has_settlement_pdf && <Button size="sm" variant="secondary" onClick={() => open(`/api/tenants/${x.id}/settlement-url`)}>Settlement PDF</Button>}
+            {x.has_settlement_pdf && <Button size="sm" variant="secondary" onClick={() => open(tenantsApi.settlementUrlPath(x.id))}>Settlement PDF</Button>}
           </div>
         </Card>
       )}
@@ -370,16 +378,16 @@ export default function TenantDetail() {
         {props.data && <EditModal t={x} properties={props.data} onClose={() => setModal(null)} />}
       </Modal>
       <Modal open={modal === "rent"} onClose={() => setModal(null)} title="Change rent">
-        <SimpleMutationForm label="New monthly rent (₹)" field="new_rent" type="number" initial={String(x.current_rent)}
-          path={`/api/tenants/${x.id}/rent-change`} button="Update rent"
+        <SimpleMutationForm label="New monthly rent (₹)" type="number" initial={String(x.current_rent)}
+          submit={(v) => tenantsApi.changeRent(x.id, Number(v))} button="Update rent"
           hint="Applies from the next rent entry. Yearly increments continue from this amount." onClose={() => setModal(null)} />
       </Modal>
       <Modal open={modal === "renew"} onClose={() => setModal(null)} title="Renew agreement">
-        <SimpleMutationForm label="New agreement end date" field="new_end_date" type="date"
+        <SimpleMutationForm label="New agreement end date" type="date"
           initial={x.agreement_end_date
             ? `${Number(x.agreement_end_date.slice(0, 4)) + 1}${x.agreement_end_date.slice(4)}`.replace("-02-29", "-02-28")
             : addYearsISO(todayISO(), 1)}
-          path={`/api/tenants/${x.id}/renew`} button="Renew" onClose={() => setModal(null)} />
+          submit={(v) => tenantsApi.renew(x.id, v)} button="Renew" onClose={() => setModal(null)} />
       </Modal>
       <Modal open={modal === "vacate"} onClose={() => setModal(null)} title="Vacate tenant">
         <VacateForm t={x} onClose={() => setModal(null)} />

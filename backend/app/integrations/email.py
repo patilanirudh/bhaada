@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from email.message import EmailMessage
 
 from app.core.config import get_settings
-from app.db.models import Owner
 from app.core.security import decrypt
+from app.db.models import Owner
 
 log = logging.getLogger(__name__)
 

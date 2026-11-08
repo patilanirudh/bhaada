@@ -47,6 +47,30 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.environment == "production"
 
+    def validate_for_production(self) -> None:
+        """Fail fast at startup if production is configured unsafely."""
+        if not self.is_production:
+            return
+        problems = []
+        if len(self.jwt_secret) < 32 or "change-me" in self.jwt_secret:
+            problems.append("JWT_SECRET must be a random string of 32+ characters")
+        if not self.fernet_key:
+            problems.append("FERNET_KEY must be set")
+        if len(self.cron_secret) < 16 or self.cron_secret.startswith(("dev-", "change-me")):
+            problems.append("CRON_SECRET must be a random string of 16+ characters")
+        if not self.cookie_secure:
+            problems.append("COOKIE_SECURE must be true (HTTPS)")
+        if not self.frontend_url.startswith("https://"):
+            problems.append("FRONTEND_URL must use https://")
+        if self.database_url.startswith("sqlite"):
+            problems.append("DATABASE_URL must point to PostgreSQL, not SQLite")
+        if self.storage_backend != "supabase":
+            problems.append("STORAGE_BACKEND must be 'supabase' (local disk is wiped on free hosts)")
+        if self.email_backend != "smtp":
+            problems.append("EMAIL_BACKEND must be 'smtp'")
+        if problems:
+            raise RuntimeError("Unsafe production configuration:\n- " + "\n- ".join(problems))
+
     @property
     def cors_origins(self) -> list[str]:
         origins = [self.frontend_url.rstrip("/")]

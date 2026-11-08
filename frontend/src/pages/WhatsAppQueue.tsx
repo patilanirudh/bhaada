@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { remindersApi } from "../api/endpoints";
 import { fmtShort, inr } from "../lib/format";
-import type { WaItem } from "../lib/types";
 import { WaIcon } from "../components/WhatsApp";
 import { Button, Card, Empty, ErrorBox, PageHeader, PageLoader, errMsg, useToast } from "../components/ui";
 
@@ -17,7 +16,7 @@ export default function WhatsAppQueue() {
   const toast = useToast();
   const q = useQuery({
     queryKey: ["wa-queue", kind],
-    queryFn: () => api<{ items: WaItem[] }>(`/api/reminders/whatsapp/queue?kind=${kind}`),
+    queryFn: () => remindersApi.queue(kind),
     staleTime: Infinity,
   });
   const [idx, setIdx] = useState(0);
@@ -50,7 +49,7 @@ export default function WhatsAppQueue() {
     if (r === "sent") {
       setSaving(true);
       try {
-        await api("/api/reminders/whatsapp/log", { method: "POST", body: { tenant_id: item.tenant_id, type: item.type, ref: item.ref } });
+        await remindersApi.logWhatsApp(item);
       } catch (e) {
         toast(errMsg(e), "err");
       } finally {
@@ -61,7 +60,7 @@ export default function WhatsAppQueue() {
     setOpened(false);
     setIdx(idx + 1);
     if (idx + 1 >= items.length) {
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["actions"] });
       qc.invalidateQueries({ queryKey: ["tenants"] });
     }
   };

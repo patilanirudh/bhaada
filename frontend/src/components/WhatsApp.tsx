@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { remindersApi } from "../api/endpoints";
 import type { WaItem } from "../lib/types";
 import { Button, errMsg, useToast } from "./ui";
 
@@ -9,12 +9,9 @@ export function useWhatsAppSend() {
   const toast = useToast();
   const log = useMutation({
     mutationFn: (item: Pick<WaItem, "tenant_id" | "type" | "ref">) =>
-      api("/api/reminders/whatsapp/log", {
-        method: "POST",
-        body: { tenant_id: item.tenant_id, type: item.type, ref: item.ref },
-      }),
+      remindersApi.logWhatsApp(item),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["actions"] });
       qc.invalidateQueries({ queryKey: ["tenants"] });
       qc.invalidateQueries({ queryKey: ["reminders"] });
     },
@@ -59,12 +56,9 @@ export function TenantWhatsAppButton({
     // Open the tab first (synchronously) so popup blockers allow it, then fill it in.
     const w = window.open("", "_blank");
     try {
-      const item = await api<WaItem>(`/api/reminders/whatsapp/tenant/${tenantId}?kind=${kind}`);
+      const item = await remindersApi.forTenant(tenantId, kind);
       if (w) w.location.href = item.link;
-      await api("/api/reminders/whatsapp/log", {
-        method: "POST",
-        body: { tenant_id: item.tenant_id, type: item.type, ref: item.ref },
-      });
+      await remindersApi.logWhatsApp(item);
       qc.invalidateQueries({ queryKey: ["tenants"] });
       qc.invalidateQueries({ queryKey: ["reminders"] });
     } catch (e) {

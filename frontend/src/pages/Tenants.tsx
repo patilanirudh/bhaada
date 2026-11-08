@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "../lib/api";
+import { ApiError } from "../api/client";
+import { propertiesApi, tenantsApi } from "../api/endpoints";
 import { fmtShort, inr, phoneDisplay, todayISO } from "../lib/format";
 import type { Property, Tenant } from "../lib/types";
 import { TenantWhatsAppButton } from "../components/WhatsApp";
@@ -32,23 +33,17 @@ function AddTenant({ properties, onDone }: { properties: Property[]; onDone: (t:
     mutationFn: async () => {
       let unitId = Number(f.unit_id);
       if (f.unit_id === "new") {
-        const u = await api<{ id: number }>(`/api/properties/${newUnit.property_id}/units`, {
-          method: "POST",
-          body: { name: newUnit.name.trim(), default_rent: Number(f.base_rent || 0) },
-        });
+        const u = await propertiesApi.saveUnit(Number(newUnit.property_id), undefined, { name: newUnit.name.trim(), default_rent: Number(f.base_rent || 0) });
         unitId = u.id;
         qc.invalidateQueries({ queryKey: ["properties"] });
       }
-      return api<Tenant>("/api/tenants", {
-        method: "POST",
-        body: {
+      return tenantsApi.create({
           ...f, email: f.email || null, unit_id: unitId, base_rent: Number(f.base_rent),
           security_deposit: Number(f.security_deposit || 0), due_day: Number(f.due_day), increment_percent: Number(f.increment_percent),
           agreement_end_date: f.agreement_end_date || null, id_type: f.id_type || null, id_number: f.id_number || null,
-        },
-      });
+        });
     },
-    onSuccess: (t) => { qc.invalidateQueries({ queryKey: ["tenants"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); onDone(t); },
+    onSuccess: (t) => { qc.invalidateQueries({ queryKey: ["tenants"] }); qc.invalidateQueries({ queryKey: ["actions"] }); qc.invalidateQueries({ queryKey: ["summary"] }); onDone(t); },
     onError: (e) => e instanceof ApiError && setErrors(e.errors),
   });
   const submit = (e: React.FormEvent) => {
@@ -121,14 +116,14 @@ export default function Tenants() {
   const [propertyId, setPropertyId] = useState("");
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
-  const props = useQuery({ queryKey: ["properties"], queryFn: () => api<Property[]>("/api/properties") });
+  const props = useQuery({ queryKey: ["properties"], queryFn: propertiesApi.list });
   const params = new URLSearchParams();
   if (status) params.set("status", status);
   if (propertyId) params.set("property_id", propertyId);
   if (q.trim()) params.set("q", q.trim());
   const tenants = useQuery({
     queryKey: ["tenants", status, propertyId, q],
-    queryFn: () => api<Tenant[]>(`/api/tenants?${params}`),
+    queryFn: () => tenantsApi.list({ status, property_id: propertyId, q: q.trim() }),
   });
 
   return (

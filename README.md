@@ -36,7 +36,7 @@ python -m venv .venv
 pip install -r requirements.txt
 cp .env.example .env            # defaults work for local dev (SQLite, console email, local uploads)
 alembic upgrade head
-python -m app.seed              # demo data: demo@rentmanager.in / demo12345
+python -m app.scripts.seed              # demo data: demo@rentmanager.in / demo12345
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -60,7 +60,9 @@ With `EMAIL_BACKEND=console`, emails are printed to the backend log instead of b
 ### Tests
 
 ```bash
-cd backend && pytest -q
+cd backend && pip install -r requirements-dev.txt
+ruff check app tests     # lint, including security rules
+pytest -q
 ```
 
 The tests cover rent calculation, increments (including leap years), Aadhaar Verhoeff/PAN validation, owner data isolation, link expiry and usage limits, honeypot and rate limit, daily-job idempotency and retry, payments and receipts, Excel export/import, and move-out settlement.
@@ -113,7 +115,7 @@ Gmail allows about 500 emails per day per account. If a send fails, it is logged
 3. Fill in the values marked `sync: false`: `DATABASE_URL` (Neon), `FRONTEND_URL` (your Vercel URL; set it after step 4 if needed), `FERNET_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SYSTEM_GMAIL_ADDRESS`, `SYSTEM_GMAIL_APP_PASSWORD`.
 4. Deploy. Each start runs `alembic upgrade head` and then uvicorn. Check `https://<service>.onrender.com/api/health`.
 5. Copy the generated `CRON_SECRET` value from the Render dashboard.
-6. Optional demo data: open the Render shell and run `python -m app.seed`.
+6. Optional demo data: open the Render shell and run `python -m app.scripts.seed`.
 
 > On the free tier the service sleeps after 15 minutes idle, so the first request takes about 30–60 seconds. The cron workflow wakes it up before running the jobs.
 
@@ -149,23 +151,59 @@ The job is idempotent. Every email is recorded in `reminder_logs` with a dedupe 
 - **Excel import:** "Base Rent" is treated as the rent the tenant pays today. A blank template is in `templates/tenant-import-template.xlsx`, and owners can also download it from the app.
 - **Scaling:** the rate limiter is in-memory, which is fine for a single Render instance. Move it to Redis before running more than one instance.
 
+## Architecture
+
+```
+Browser (React SPA)  ──/api──▶  FastAPI backend  ──▶  PostgreSQL (Neon)
+  pages → api/endpoints.ts        api/routes  (HTTP only)       │
+        → api/client.ts           services    (business rules)  ├──▶ Supabase Storage (private files)
+                                  db          (models, scope)   ├──▶ Gmail SMTP
+                                  integrations / documents      └──▶ wa.me links (owner taps send)
+GitHub Actions cron ──X-Cron-Secret──▶ POST /api/jobs/run-daily
+```
+
+**Backend layers** (`backend/app/`). Dependencies point downward only:
+
+| Layer | Responsibility | May import |
+|---|---|---|
+| `api/routes/` | HTTP: parse/validate requests, auth, rate limits, call a service, shape the response | services, db, schemas |
+| `services/` | Business rules: rent maths, tenant lifecycle, ledger, registration, reminders, daily job. Raises domain errors (`core/errors.py`) and never imports FastAPI | db, integrations, documents |
+| `db/` | SQLAlchemy models, sessions, and `OwnerScope`, the owner-filtered data gateway | core |
+| `integrations/` | External systems behind interfaces: `Storage` (local / Supabase), email (SMTP), `WhatsAppSender` | core |
+| `documents/` | File formats with no DB access: PDF receipts and settlements, Excel export/template/parsing | utils |
+| `core/` | Config (with production safety checks), security (bcrypt, JWT, Fernet), errors, logging, defaults | nothing app-specific |
+
+**Frontend** (`frontend/src/`): `pages/` (screens) → `api/endpoints.ts` (typed functions; the only file that knows URLs) → `api/client.ts` (fetch, token refresh, errors). Shared UI is in `components/`, and formatting/validation helpers are in `lib/`.
+
+### Security & privacy
+
+- **Tenant isolation:** every owner table has `owner_id`, and all reads go through `OwnerScope`. Tests prove owner A can't read or change owner B's data.
+- **Auth:** bcrypt passwords. Short-lived access token kept in memory. Refresh token in an httpOnly cookie, rotated on use and revoked on logout or password change. Login is rate-limited per IP **and** per account.
+- **ID data:** Aadhaar/PAN numbers are encrypted with Fernet, and the UI and exports show only the last 4 digits. Documents are checked by real file type, stored in a private bucket, opened through 5-minute signed URLs, and every view is audited.
+- **Data minimisation and retention:** ID documents are deleted on rejection and 90 days after move-out. Owners can **erase a former tenant's personal data** (DPDP right to erasure); payment records are kept without the person's identity. A privacy notice and consent checkbox appear on the registration form.
+- **Hardening:** CORS limited to the app URL. CSP, HSTS, nosniff and frame-deny headers. Generic 500 responses with a request ID, with details only in server logs. Access logs record paths only, never query strings (which can carry signed tokens). Rate limit and honeypot on the public form.
+- **Safe configuration:** in production the app **refuses to start** if secrets are weak or default, `FERNET_KEY` is missing, cookies aren't secure, or it's pointed at SQLite or local disk.
+- **Supply chain:** pinned dependencies. CI runs `ruff` (including bandit security rules), `pytest`, the TypeScript type check and the build.
+
 ## Project layout
 
 ```
 backend/
   app/
-    main.py            FastAPI app, CORS, security headers, signed local file route
-    models.py          SQLAlchemy models (owner_id on every owner table)
-    deps.py            Current owner + OwnerScope (owner-filtered queries)
-    routers/           auth, settings, properties, links, public, tenants, rent, excel,
-                       reminders, dashboard, jobs
-    services/          rent maths, daily jobs, email, storage, excel, pdf, whatsapp, templates
-    seed.py            demo data
+    main.py            app factory: middleware, error mapping, routers
+    api/               deps.py (auth, scope) + routes/ (one module per resource)
+    services/          tenants, ledger, registration, rent, jobs, excel, messages, templates, audit
+    db/                models.py, session.py, scope.py (OwnerScope)
+    integrations/      storage.py, email.py, whatsapp.py
+    documents/         pdf.py, excel.py
+    core/              config, security, errors, logging, defaults
+    scripts/seed.py    demo data
   alembic/             migrations
-  tests/               pytest suite
+  tests/               pytest suite (isolation, security, jobs, ledger, registration, rent, validators)
 frontend/
-  src/pages/           Dashboard, Tenants, TenantDetail, Payments, Properties, Links,
-                       Settings, PublicRegister, WhatsAppQueue, ImportExcel, auth pages
+  src/api/             client.ts (fetch + auth) and endpoints.ts (typed API functions)
+  src/pages/           Home (action today), Dashboard (money), Tenants, TenantDetail, Payments,
+                       Properties, Links, Settings, PublicRegister, WhatsAppQueue, ImportExcel, auth
 render.yaml  frontend/vercel.json  .github/workflows/daily-jobs.yml
 templates/tenant-import-template.xlsx
 ```

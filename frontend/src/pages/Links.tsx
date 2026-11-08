@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { linksApi, propertiesApi } from "../api/endpoints";
 import { fmtDate } from "../lib/format";
 import type { Property, RegLink } from "../lib/types";
 import { WaIcon } from "../components/WhatsApp";
@@ -16,10 +16,7 @@ function CreateLink({ properties, onDone }: { properties: Property[]; onDone: (l
   const prop = properties.find((p) => p.id === propertyId);
   const m = useMutation({
     mutationFn: () =>
-      api<RegLink>("/api/links", {
-        method: "POST",
-        body: { property_id: propertyId, unit_id: unitId ? Number(unitId) : null, expires_in_days: days, max_uses: uses },
-      }),
+      linksApi.create({ property_id: propertyId, unit_id: unitId ? Number(unitId) : null, expires_in_days: days, max_uses: uses }),
     onSuccess: (l) => { qc.invalidateQueries({ queryKey: ["links"] }); onDone(l); },
   });
   return (
@@ -68,13 +65,13 @@ function LinkActions({ l }: { l: RegLink }) {
 export default function Links() {
   const qc = useQueryClient();
   const toast = useToast();
-  const props = useQuery({ queryKey: ["properties"], queryFn: () => api<Property[]>("/api/properties") });
-  const links = useQuery({ queryKey: ["links"], queryFn: () => api<RegLink[]>("/api/links") });
+  const props = useQuery({ queryKey: ["properties"], queryFn: propertiesApi.list });
+  const links = useQuery({ queryKey: ["links"], queryFn: linksApi.list });
   const [open, setOpen] = useState(false);
   const [created, setCreated] = useState<RegLink | null>(null);
   const act = useMutation({
     mutationFn: ({ id, del }: { id: number; del?: boolean }) =>
-      api(del ? `/api/links/${id}` : `/api/links/${id}/deactivate`, { method: del ? "DELETE" : "POST" }),
+      (del ? linksApi.remove(id) : linksApi.deactivate(id)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["links"] }),
     onError: (e) => toast(errMsg(e), "err"),
   });

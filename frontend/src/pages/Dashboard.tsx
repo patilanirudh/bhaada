@@ -1,12 +1,9 @@
-import { useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { api } from "../lib/api";
-import { fmtDate, fmtShort, inr } from "../lib/format";
-import type { Dashboard as D, WaItem } from "../lib/types";
-import { Button, Card, ErrorBox, PageHeader, PageLoader } from "../components/ui";
-import { WhatsAppButton } from "../components/WhatsApp";
+import { dashboardApi, qk } from "../api/endpoints";
+import { fmtDate, inr } from "../lib/format";
+import { Card, ErrorBox, PageHeader, PageLoader } from "../components/ui";
 
 // Categorical slots 1 & 2 (validated: CVD ΔE 24.7, normal ΔE 33.6, contrast ≥ 3:1 on white).
 const C_COLLECTED = "#2a78d6";
@@ -19,43 +16,6 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
       <p className={`mt-1 text-xl font-bold sm:text-2xl ${tone === "red" ? "text-red-700" : "text-slate-900"}`}>{value}</p>
       {sub && <p className="mt-0.5 text-xs text-slate-500">{sub}</p>}
     </Card>
-  );
-}
-
-function Section({ title, count, children, action }: { title: string; count: number; children: ReactNode; action?: ReactNode }) {
-  if (!count) return null;
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">
-          {title} <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs">{count}</span>
-        </h3>
-        {action}
-      </div>
-      <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">{children}</ul>
-    </div>
-  );
-}
-
-function Row({ children }: { children: ReactNode }) {
-  return <li className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">{children}</li>;
-}
-
-function RentRow({ it, overdue }: { it: WaItem; overdue?: boolean }) {
-  return (
-    <Row>
-      <div className="min-w-0">
-        <Link to={`/tenants/${it.tenant_id}`} className="font-medium text-slate-900 hover:underline">{it.tenant_name}</Link>
-        <p className="text-xs text-slate-500">
-          {it.unit_name} · {inr(it.balance)} · {overdue ? `was due ${fmtShort(it.due_date)}` : "due today"}
-          {it.last_whatsapp_on && <span className="ml-1 text-emerald-700">· Reminded on {fmtShort(it.last_whatsapp_on)}</span>}
-        </p>
-      </div>
-      <div className="flex gap-2">
-        <Link to={`/tenants/${it.tenant_id}#ledger`}><Button size="sm" variant="secondary">Mark paid</Button></Link>
-        <WhatsAppButton item={it} label="Remind" />
-      </div>
-    </Row>
   );
 }
 
@@ -73,93 +33,39 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-const compact = (v: number) => (v >= 100000 ? `₹${(v / 100000).toFixed(v % 100000 ? 1 : 0)}L` : v >= 1000 ? `₹${Math.round(v / 1000)}k` : `₹${v}`);
+const compact = (v: number) =>
+  v >= 100000 ? `₹${(v / 100000).toFixed(v % 100000 ? 1 : 0)}L` : v >= 1000 ? `₹${Math.round(v / 1000)}k` : `₹${v}`;
+const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
 
+/** Dashboard: money overview only (the to-do list is on Home). */
 export default function Dashboard() {
-  const { data, isLoading, error } = useQuery({ queryKey: ["dashboard"], queryFn: () => api<D>("/api/dashboard") });
+  const { data, isLoading, error } = useQuery({ queryKey: qk.summary, queryFn: dashboardApi.summary });
   const [table, setTable] = useState(false);
   if (isLoading) return <PageLoader />;
   if (error || !data) return <ErrorBox error={error} />;
-  const { cards, actions } = data;
-  const actionCount =
-    actions.due_today.length + actions.overdue.length + actions.pending_approvals.length +
-    actions.upcoming_increments.length + actions.expiring_agreements.length;
+  const c = data.cards;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard" subtitle={`${data.month_label} · today ${fmtDate(data.today)}`} />
+      <PageHeader title="Dashboard" subtitle={`${data.month_label} · as of ${fmtDate(data.today)}`} />
 
-      {(!data.gmail_configured || !data.upi_configured) && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          Finish setup:{" "}
-          {!data.upi_configured && <span>add your <b>UPI ID</b> </span>}
-          {!data.upi_configured && !data.gmail_configured && "and "}
-          {!data.gmail_configured && <span>connect <b>Gmail</b> for automatic email reminders </span>}
-          — <Link to="/settings" className="font-medium underline">Open settings</Link>
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-slate-700">This month</h2>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat label="Expected" value={inr(c.expected)} sub={`${c.active_tenants} active tenants`} />
+          <Stat label="Collected" value={inr(c.collected)} sub={`${pct(c.collected, c.expected)} of this month`} />
+          <Stat label="Pending" value={inr(c.pending)} sub="this month" />
+          <Stat label="Overdue" value={inr(c.overdue_amount)} sub={`${c.overdue_count} unpaid months`} tone={c.overdue_count ? "red" : undefined} />
         </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Expected" value={inr(cards.expected)} sub={`${cards.active_tenants} active tenants`} />
-        <Stat label="Collected" value={inr(cards.collected)} sub={cards.expected ? `${Math.round((cards.collected / cards.expected) * 100)}% of this month` : undefined} />
-        <Stat label="Pending" value={inr(cards.pending)} sub="this month" />
-        <Stat label="Overdue" value={String(cards.overdue_count)} sub={inr(cards.overdue_amount)} tone={cards.overdue_count ? "red" : undefined} />
       </div>
 
       <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Action today</h2>
-          {(actions.due_today.length + actions.overdue.length > 0) && (
-            <Link to="/whatsapp-queue?kind=due"><Button variant="whatsapp" size="sm">Send all due reminders</Button></Link>
-          )}
+        <h2 className="mb-2 text-sm font-semibold text-slate-700">Last 12 months</h2>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <Stat label="Collected" value={inr(c.collected_12m)} sub={`of ${inr(c.expected_12m)} expected`} />
+          <Stat label="Collection rate" value={pct(c.collected_12m, c.expected_12m)} />
+          <Stat label="Deposits held" value={inr(c.deposits_held)} sub="active tenants" />
         </div>
-        {actionCount === 0 ? (
-          <Card className="text-center text-sm text-slate-500">🎉 Nothing needs your attention today.</Card>
-        ) : (
-          <div className="space-y-4">
-            <Section title="Pending approvals" count={actions.pending_approvals.length}>
-              {actions.pending_approvals.map((p) => (
-                <Row key={p.tenant_id}>
-                  <div>
-                    <p className="font-medium text-slate-900">{p.tenant_name}</p>
-                    <p className="text-xs text-slate-500">{p.property_name}{p.unit_name ? ` · ${p.unit_name}` : ""} · registered {fmtDate(p.created_at)}</p>
-                  </div>
-                  <Link to={`/tenants/${p.tenant_id}`}><Button size="sm">Review</Button></Link>
-                </Row>
-              ))}
-            </Section>
-            <Section title="Due today" count={actions.due_today.length}>
-              {actions.due_today.map((it) => <RentRow key={it.tenant_id} it={it} />)}
-            </Section>
-            <Section title="Overdue" count={actions.overdue.length}>
-              {actions.overdue.map((it) => <RentRow key={it.tenant_id} it={it} overdue />)}
-            </Section>
-            <Section title="Rent increase in next 30 days" count={actions.upcoming_increments.length}>
-              {actions.upcoming_increments.map((it) => (
-                <Row key={it.tenant_id}>
-                  <div>
-                    <Link to={`/tenants/${it.tenant_id}`} className="font-medium text-slate-900 hover:underline">{it.tenant_name}</Link>
-                    <p className="text-xs text-slate-500">{inr(it.old_rent)} → <b>{inr(it.new_rent)}</b> from {fmtDate(it.effective_date)}</p>
-                  </div>
-                  <WhatsAppButton item={it} label="Send notice" />
-                </Row>
-              ))}
-            </Section>
-            <Section title="Agreements ending soon" count={actions.expiring_agreements.length}>
-              {actions.expiring_agreements.map((a) => (
-                <Row key={a.tenant_id}>
-                  <div>
-                    <p className="font-medium text-slate-900">{a.tenant_name}</p>
-                    <p className={`text-xs ${a.days_left < 0 ? "text-red-600" : "text-slate-500"}`}>
-                      {a.unit_name} · ends {fmtDate(a.end_date)} ({a.days_left < 0 ? `${-a.days_left} days ago` : `${a.days_left} days left`})
-                    </p>
-                  </div>
-                  <Link to={`/tenants/${a.tenant_id}?renew=1`}><Button size="sm" variant="secondary">Renew</Button></Link>
-                </Row>
-              ))}
-            </Section>
-          </div>
-        )}
       </div>
 
       <Card>
@@ -174,17 +80,17 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead><tr className="text-left text-xs text-slate-500"><th className="py-1">Month</th><th className="text-right">Expected</th><th className="text-right">Collected</th><th className="text-right">Pending</th></tr></thead>
               <tbody>
-                {data.chart.map((c) => (
-                  <tr key={c.month} className="border-t border-slate-100">
-                    <td className="py-1.5">{c.label}</td><td className="text-right">{inr(c.expected)}</td>
-                    <td className="text-right">{inr(c.collected)}</td><td className="text-right">{inr(c.expected - c.collected)}</td>
+                {data.chart.map((r) => (
+                  <tr key={r.month} className="border-t border-slate-100">
+                    <td className="py-1.5">{r.label}</td><td className="text-right">{inr(r.expected)}</td>
+                    <td className="text-right">{inr(r.collected)}</td><td className="text-right">{inr(r.expected - r.collected)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <div className="h-64 w-full">
+          <div className="h-72 w-full">
             <ResponsiveContainer>
               <BarChart data={data.chart} barGap={2} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
                 <CartesianGrid vertical={false} stroke="#eef2f6" />

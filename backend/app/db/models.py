@@ -4,7 +4,7 @@ Every table holding owner data carries an ``owner_id`` column so that every
 query can be scoped to the logged-in owner (see ``app.api.deps.OwnerScope``).
 Money is stored as whole rupees (Integer).
 """
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     JSON,
@@ -25,7 +25,7 @@ from app.db.session import Base
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class TenantStatus:

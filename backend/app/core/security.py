@@ -1,7 +1,7 @@
 import base64
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
@@ -26,7 +26,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 # ---------- JWT ----------
 def _encode(payload: dict, expires: timedelta) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     data = {**payload, "iat": now, "exp": now + expires}
     return jwt.encode(data, get_settings().jwt_secret, algorithm=ALGO)
 

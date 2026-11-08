@@ -101,9 +101,8 @@ def normalize_phone(raw: str) -> str | None:
         if len(digits) == 12 and digits.startswith("91") and digits[2] in "6789":
             return "+" + digits
         return None
-    if digits.startswith("91"):
-        if len(digits) != 12 or digits[2] not in "6789":
-            return None
+    if digits.startswith("91") and (len(digits) != 12 or digits[2] not in "6789"):
+        return None
     if not 8 <= len(digits) <= 15:
         return None
     return "+" + digits

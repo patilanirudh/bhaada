@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, download, openSigned } from "../lib/api";
+import { download, openSigned } from "../api/client";
+import { excelApi, rentApi } from "../api/endpoints";
 import { fmtDate, inr, monthLabel, todayISO } from "../lib/format";
-import type { Payment, RentEntry } from "../lib/types";
+import type { RentEntry } from "../lib/types";
 import { MarkPaidModal, ReceiptLink } from "../components/MarkPaid";
 import { Badge, Button, Card, Empty, ErrorBox, PageHeader, PageLoader, Select, errMsg, useToast } from "../components/ui";
 
-type PaymentRow = Payment & { month: string; tenant_id: number; tenant_name: string; unit_name: string | null; property_name: string | null };
 
 function monthsBack(n: number): string[] {
   const t = todayISO();
@@ -32,16 +32,16 @@ export default function Payments() {
   const [paying, setPaying] = useState<RentEntry | null>(null);
   const qs = new URLSearchParams({ month });
   if (status) qs.set("status", status);
-  const entries = useQuery({ queryKey: ["entries", month, status], queryFn: () => api<RentEntry[]>(`/api/rent/entries?${qs}`), enabled: tab === "ledger" });
-  const history = useQuery({ queryKey: ["payments"], queryFn: () => api<PaymentRow[]>("/api/rent/payments?limit=300"), enabled: tab === "history" });
+  const entries = useQuery({ queryKey: ["entries", month, status], queryFn: () => rentApi.entries({ month, status }), enabled: tab === "ledger" });
+  const history = useQuery({ queryKey: ["payments"], queryFn: () => rentApi.payments(300), enabled: tab === "history" });
   const gen = useMutation({
-    mutationFn: () => api<{ created: number }>("/api/rent/generate", { method: "POST" }),
+    mutationFn: () => rentApi.generate(),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["entries"] }); toast(r.created ? `${r.created} rent entries created` : "Ledger is up to date"); },
   });
   const [dl, setDl] = useState(false);
   const exportXlsx = async () => {
     setDl(true);
-    try { await download("/api/excel/export", "rent-data.xlsx"); } catch (e) { toast(errMsg(e), "err"); } finally { setDl(false); }
+    try { await download(excelApi.exportPath, "rent-data.xlsx"); } catch (e) { toast(errMsg(e), "err"); } finally { setDl(false); }
   };
 
   const total = entries.data?.reduce((a, e) => ({ due: a.due + e.amount_due, paid: a.paid + e.amount_paid }), { due: 0, paid: 0 });
@@ -50,7 +50,7 @@ export default function Payments() {
     <div>
       <PageHeader title="Payments" actions={<>
         <Button variant="secondary" loading={dl} onClick={exportXlsx}>⬇ Download Excel</Button>
-        <Button variant="ghost" onClick={() => openSigned("/api/excel/latest").catch((e) => toast(errMsg(e), "err"))}>Saved copy</Button>
+        <Button variant="ghost" onClick={() => openSigned(excelApi.latestPath).catch((e) => toast(errMsg(e), "err"))}>Saved copy</Button>
         <Link to="/import"><Button variant="ghost">Import</Button></Link>
       </>} />
       <div className="mb-4 flex gap-1 rounded-lg bg-slate-200 p-1 text-sm">
