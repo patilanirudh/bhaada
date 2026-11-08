@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 
-from app.config import get_settings
-from app.default_rules import DEFAULT_HOUSE_RULES
-from app.deps import DB, CurrentOwner
-from app.models import Owner
+from app.core.config import get_settings
+from app.core.defaults import DEFAULT_HOUSE_RULES
+from app.api.deps import DB, CurrentOwner
+from app.db.models import Owner
 from app.schemas import (
     ChangePasswordIn,
     ForgotIn,
@@ -14,7 +14,7 @@ from app.schemas import (
     ResetIn,
     TokenOut,
 )
-from app.security import (
+from app.core.security import (
     create_access_token,
     create_refresh_token,
     create_reset_token,
@@ -24,7 +24,7 @@ from app.security import (
     verify_password,
 )
 from app.services.audit import audit
-from app.services.email import EmailError, send_email, system_credentials
+from app.integrations.email import EmailError, send_email, system_credentials
 from app.utils.ratelimit import limiter
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])

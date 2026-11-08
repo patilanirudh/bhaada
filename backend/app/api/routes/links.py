@@ -2,13 +2,13 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.config import get_settings
-from app.deps import Scope
-from app.models import Property, RegistrationLink, Unit
+from app.core.config import get_settings
+from app.api.deps import Scope
+from app.db.models import Property, RegistrationLink, Unit
 from app.schemas import LinkIn, LinkOut
 from app.services.audit import audit
-from app.services.whatsapp import wa_link
-from app.security import random_token
+from app.integrations.whatsapp import wa_link
+from app.core.security import random_token
 
 router = APIRouter(prefix="/api/links", tags=["registration links"])
 

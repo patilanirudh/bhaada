@@ -9,8 +9,8 @@ from urllib.parse import quote
 
 import httpx
 
-from app.config import get_settings
-from app.security import create_file_token
+from app.core.config import get_settings
+from app.core.security import create_file_token
 
 log = logging.getLogger(__name__)
 

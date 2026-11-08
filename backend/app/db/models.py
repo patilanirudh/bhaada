@@ -1,7 +1,7 @@
 """SQLAlchemy models.
 
 Every table holding owner data carries an ``owner_id`` column so that every
-query can be scoped to the logged-in owner (see ``app.deps.OwnerScope``).
+query can be scoped to the logged-in owner (see ``app.api.deps.OwnerScope``).
 Money is stored as whole rupees (Integer).
 """
 from datetime import date, datetime, timezone
@@ -21,7 +21,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.db.session import Base
 
 
 def utcnow() -> datetime:

@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from sqlalchemy.orm import Session
 
-from app.models import Owner, RentEntry, Tenant
+from app.db.models import Owner, RentEntry, Tenant
 from app.services.templates import get_template, render
 from app.utils.formatting import fmt_date, fmt_short, inr, month_label
 

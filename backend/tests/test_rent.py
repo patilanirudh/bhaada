@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.models import RentHistory, Tenant, TenantStatus
+from app.db.models import RentHistory, Tenant, TenantStatus
 from app.services.rent import (
     add_years,
     apply_increment,
@@ -54,7 +54,7 @@ def _tenant(db, owner_id, **kw):
 
 
 def test_increment_applies_once_on_anniversary(client, owner_a, db):
-    from app.models import Owner
+    from app.db.models import Owner
     owner = db.query(Owner).first()
     t = _tenant(db, owner.id, base_rent=10000, current_rent=10000, increment_percent=10,
                 agreement_start_date=date(2025, 6, 15), rent_base_date=date(2025, 6, 15), due_day=5)
@@ -69,7 +69,7 @@ def test_increment_applies_once_on_anniversary(client, owner_a, db):
 
 
 def test_manual_change_rebases_formula(client, owner_a, db):
-    from app.models import Owner
+    from app.db.models import Owner
     owner = db.query(Owner).first()
     t = _tenant(db, owner.id, base_rent=10000, current_rent=10500, increment_percent=5,
                 agreement_start_date=date(2024, 3, 1), rent_base_date=date(2024, 3, 1), due_day=5)

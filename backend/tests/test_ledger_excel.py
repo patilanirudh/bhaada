@@ -3,8 +3,8 @@ from io import BytesIO
 
 from openpyxl import Workbook, load_workbook
 
-from app.services import email as email_service
-from app.services.storage import get_storage
+from app.integrations import email as email_service
+from app.integrations.storage import get_storage
 from app.utils.formatting import set_today_override
 from tests.conftest import make_property, make_tenant
 
@@ -58,7 +58,7 @@ def test_excel_export_autosave_and_import(client, owner_a, db):
     assert ws.freeze_panes == "A2" and ws["A1"].font.bold
     assert ws["H2"].number_format.count("₹") >= 1
     # Auto-saved copy exists (written by background task)
-    from app.models import Owner
+    from app.db.models import Owner
     owner = db.query(Owner).filter_by(email="a@example.com").one()
     assert get_storage().read(f"owners/{owner.id}/rent-data.xlsx") is not None
 

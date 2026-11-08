@@ -13,9 +13,9 @@ import ssl
 from dataclasses import dataclass, field
 from email.message import EmailMessage
 
-from app.config import get_settings
-from app.models import Owner
-from app.security import decrypt
+from app.core.config import get_settings
+from app.db.models import Owner
+from app.core.security import decrypt
 
 log = logging.getLogger(__name__)
 

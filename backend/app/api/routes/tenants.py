@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from sqlalchemy import or_, select
 
-from app.deps import Scope
-from app.models import (
+from app.api.deps import Scope
+from app.db.models import (
     Payment,
     Property,
     ReminderLog,
@@ -28,12 +28,12 @@ from app.schemas import (
     TenantUpdate,
     VacateIn,
 )
-from app.security import encrypt, random_token
+from app.core.security import encrypt, random_token
 from app.services.audit import audit
 from app.services.excel import autosave_excel
-from app.services.pdf import settlement_pdf
+from app.documents.pdf import settlement_pdf
 from app.services.rent import create_entry, ensure_entries, first_month, rebase_rent, rent_on
-from app.services.storage import get_storage
+from app.integrations.storage import get_storage
 from app.services.tenants import send_welcome, tenants_out
 from app.utils.formatting import fmt_date, month_label, today_ist
 from app.utils.validators import normalize_id_number, validate_id
@@ -313,7 +313,7 @@ def settlement_url(tenant_id: int, scope: Scope):
 @router.get("/{tenant_id}/ledger", response_model=list[RentEntryOut])
 def tenant_ledger(tenant_id: int, scope: Scope):
     t = scope.get_or_404(Tenant, tenant_id, "Tenant")
-    from app.routers.rent import entry_out
+    from app.api.routes.rent import entry_out
 
     return [entry_out(e) for e in scope.all(RentEntry, RentEntry.tenant_id == t.id, order_by=RentEntry.month.desc())]
 

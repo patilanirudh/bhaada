@@ -5,15 +5,15 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.deps import Scope
-from app.models import Channel, Payment, ReminderType, RentEntry, RentStatus, Tenant, TenantStatus
+from app.api.deps import Scope
+from app.db.models import Channel, Payment, ReminderType, RentEntry, RentStatus, Tenant, TenantStatus
 from app.schemas import PaymentIn, PaymentOut, RentEntryOut
 from app.services.audit import audit
-from app.services.email import Attachment, EmailError, send_owner_email
+from app.integrations.email import Attachment, EmailError, send_owner_email
 from app.services.excel import autosave_excel
-from app.services.pdf import receipt_pdf
+from app.documents.pdf import receipt_pdf
 from app.services.rent import compute_status, ensure_entries, refresh_statuses
-from app.services.storage import get_storage
+from app.integrations.storage import get_storage
 from app.services.tenants import log_reminder
 from app.utils.formatting import fmt_date, inr, month_label, today_ist
 

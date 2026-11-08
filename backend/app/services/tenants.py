@@ -6,9 +6,9 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Channel, Owner, ReminderLog, ReminderType, RentEntry, RentStatus, Tenant
+from app.db.models import Channel, Owner, ReminderLog, ReminderType, RentEntry, RentStatus, Tenant
 from app.schemas import TenantOut
-from app.services.email import EmailError, send_owner_email
+from app.integrations.email import EmailError, send_owner_email
 from app.services.messages import unit_label, welcome_text
 from app.utils.formatting import IST, fmt_date, inr, today_ist
 from app.utils.sanitize import html_to_text, sanitize_html

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.models import AuditLog
+from app.db.models import AuditLog
 
 
 def audit(db: Session, owner_id: int | None, action: str, entity: str, entity_id: int | None = None,

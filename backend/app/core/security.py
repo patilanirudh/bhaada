@@ -7,7 +7,7 @@ import bcrypt
 import jwt
 from cryptography.fernet import Fernet, InvalidToken
 
-from app.config import get_settings
+from app.core.config import get_settings
 
 ALGO = "HS256"
 

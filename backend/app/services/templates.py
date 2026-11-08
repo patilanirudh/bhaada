@@ -4,7 +4,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import MessageTemplate, Owner
+from app.db.models import MessageTemplate, Owner
 
 PLACEHOLDERS = ["{name}", "{amount}", "{month}", "{unit}", "{due_date}", "{upi_id}", "{owner_name}"]
 

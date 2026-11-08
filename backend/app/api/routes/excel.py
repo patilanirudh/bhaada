@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 
-from app.deps import Scope
+from app.api.deps import Scope
 from app.services.audit import audit
 from app.services.excel import (
     IMPORT_FIELDS,
@@ -18,7 +18,7 @@ from app.services.excel import (
     read_sheet,
     suggest_mapping,
 )
-from app.services.storage import get_storage
+from app.integrations.storage import get_storage
 from app.utils.formatting import today_ist
 
 router = APIRouter(prefix="/api/excel", tags=["excel"])

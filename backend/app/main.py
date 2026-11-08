@@ -5,8 +5,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from app.config import get_settings
-from app.routers import (
+from app.core.config import get_settings
+from app.core.errors import AppError
+from app.api.routes import (
     auth,
     dashboard,
     excel,
@@ -19,8 +20,8 @@ from app.routers import (
     settings,
     tenants,
 )
-from app.security import decode_token
-from app.services.storage import LocalStorage, get_storage
+from app.core.security import decode_token
+from app.integrations.storage import LocalStorage, get_storage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -56,6 +57,12 @@ async def security_headers(request: Request, call_next):
     if s.is_production:
         response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
     return response
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    """Domain errors from services -> HTTP responses."""
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message, "errors": exc.errors})
 
 
 @app.exception_handler(RequestValidationError)

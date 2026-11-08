@@ -3,9 +3,9 @@ from datetime import date, timedelta
 from fastapi import APIRouter
 from sqlalchemy import func, select
 
-from app.deps import Scope
-from app.models import RentEntry, RentStatus, Tenant, TenantStatus
-from app.routers.reminders import due_items, increment_items
+from app.api.deps import Scope
+from app.db.models import RentEntry, RentStatus, Tenant, TenantStatus
+from app.api.routes.reminders import due_items, increment_items
 from app.services.rent import month_str
 from app.utils.formatting import month_label, today_ist
 

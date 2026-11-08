@@ -7,7 +7,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import RentEntry, RentHistory, RentStatus, Tenant, TenantStatus
+from app.db.models import RentEntry, RentHistory, RentStatus, Tenant, TenantStatus
 
 ENTRY_HORIZON_DAYS = 7  # create next month's entry this many days before its due date
 

@@ -15,8 +15,8 @@ from html import escape
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
-from app.models import (
+from app.core.config import get_settings
+from app.db.models import (
     Channel,
     Owner,
     ReminderLog,
@@ -26,7 +26,7 @@ from app.models import (
     Tenant,
     TenantStatus,
 )
-from app.services.email import (
+from app.integrations.email import (
     EmailError,
     notify_owner,
     owner_credentials,
@@ -37,7 +37,7 @@ from app.services.excel import autosave_excel
 from app.services.messages import increment_text, rent_reminder_text, unit_label, upi_link
 from app.services.rent import apply_increment, ensure_entries, next_anniversary, refresh_statuses, rent_on
 from app.services.tenants import log_reminder
-from app.services.storage import get_storage
+from app.integrations.storage import get_storage
 from app.utils.formatting import fmt_date, inr, month_label
 
 log = logging.getLogger(__name__)

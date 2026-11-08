@@ -1,7 +1,7 @@
 from datetime import date
 
-from app.models import ReminderLog, RentEntry, Tenant
-from app.services import email as email_service
+from app.db.models import ReminderLog, RentEntry, Tenant
+from app.integrations import email as email_service
 from app.utils.formatting import set_today_override
 from tests.conftest import make_property, make_tenant
 

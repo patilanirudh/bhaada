@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
-from app.default_rules import DEFAULT_HOUSE_RULES
-from app.deps import Scope
-from app.models import Property, Tenant, TenantStatus, Unit
+from app.core.defaults import DEFAULT_HOUSE_RULES
+from app.api.deps import Scope
+from app.db.models import Property, Tenant, TenantStatus, Unit
 from app.schemas import PropertyIn, PropertyOut, UnitIn, UnitOut
 from app.services.audit import audit
 from app.utils.sanitize import sanitize_html

@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
-from app.models import RegistrationLink, Tenant
-from app.security import decrypt
-from app.services import email as email_service
+from app.db.models import RegistrationLink, Tenant
+from app.core.security import decrypt
+from app.integrations import email as email_service
 from tests.conftest import PDF, PNG, make_property, valid_aadhaar
 
 

@@ -3,8 +3,8 @@ from datetime import date
 
 from fastapi import APIRouter, Header, HTTPException, status
 
-from app.config import get_settings
-from app.deps import DB
+from app.core.config import get_settings
+from app.api.deps import DB
 from app.services.jobs import run_daily
 from app.utils.formatting import today_ist
 

@@ -5,14 +5,14 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy import select, update
 
-from app.config import get_settings
-from app.deps import DB
-from app.models import Owner, RegistrationLink, Tenant, TenantStatus
-from app.routers.links import link_problem
-from app.security import encrypt, random_token
+from app.core.config import get_settings
+from app.api.deps import DB
+from app.db.models import Owner, RegistrationLink, Tenant, TenantStatus
+from app.api.routes.links import link_problem
+from app.core.security import encrypt, random_token
 from app.services.audit import audit
-from app.services.email import notify_owner
-from app.services.storage import get_storage
+from app.integrations.email import notify_owner
+from app.integrations.storage import get_storage
 from app.utils.ratelimit import limiter
 from app.utils.sanitize import sanitize_html
 from app.utils.validators import (

@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.deps import Scope
-from app.models import MessageTemplate, Property
+from app.api.deps import Scope
+from app.db.models import MessageTemplate, Property
 from app.utils.sanitize import sanitize_html
-from app.routers.auth import owner_out
+from app.api.routes.auth import owner_out
 from app.schemas import GmailIn, HouseRulesIn, OwnerOut, OwnerUpdate, TemplateIn, TemplateOut
-from app.security import encrypt
+from app.core.security import encrypt
 from app.services.audit import audit
-from app.services.email import EmailError, send_owner_email
+from app.integrations.email import EmailError, send_owner_email
 from app.services.templates import DEFAULTS, KINDS, PLACEHOLDERS
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])

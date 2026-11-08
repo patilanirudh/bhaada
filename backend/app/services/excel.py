@@ -11,10 +11,10 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import database
-from app.models import Owner, Payment, Property, RentEntry, RentHistory, Tenant, TenantStatus, Unit
+from app.db import session as database
+from app.db.models import Owner, Payment, Property, RentEntry, RentHistory, Tenant, TenantStatus, Unit
 from app.services.rent import month_str, rebase_rent
-from app.services.storage import get_storage
+from app.integrations.storage import get_storage
 from app.utils.formatting import today_ist
 from app.utils.validators import mask_id, normalize_id_number, normalize_phone, validate_id
 
@@ -298,7 +298,7 @@ def preview_dict(rec: dict) -> dict:
 
 
 def import_rows(db: Session, owner: Owner, recs: list[dict]) -> int:
-    from app.security import encrypt
+    from app.core.security import encrypt
     from app.services.rent import ensure_entries
 
     today = today_ist()

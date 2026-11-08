@@ -1,16 +1,16 @@
 """Demo data: one owner, two properties, five tenants (one pending) and some payments.
 
-Run:  python -m app.seed          (after `alembic upgrade head`)
+Run:  python -m app.scripts.seed          (after `alembic upgrade head`)
 Login: demo@rentmanager.in / demo12345
 """
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app import database
-from app.default_rules import DEFAULT_HOUSE_RULES
-from app.models import Owner, Payment, Property, RentEntry, Tenant, TenantStatus, Unit
-from app.security import encrypt, hash_password
+from app.db import session as database
+from app.core.defaults import DEFAULT_HOUSE_RULES
+from app.db.models import Owner, Payment, Property, RentEntry, Tenant, TenantStatus, Unit
+from app.core.security import encrypt, hash_password
 from app.services.rent import compute_status, create_entry, ensure_entries, month_str, rent_on
 from app.utils.formatting import today_ist
 from app.utils.validators import verhoeff_check_digit

@@ -2,8 +2,8 @@ from logging.config import fileConfig
 
 from alembic import context
 
-from app import models  # noqa: F401  (registers tables)
-from app.database import Base, engine
+from app.db import models  # noqa: F401  (registers tables)
+from app.db.session import Base, engine
 
 config = context.config
 if config.config_file_name is not None:

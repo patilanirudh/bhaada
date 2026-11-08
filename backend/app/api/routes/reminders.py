@@ -4,8 +4,8 @@ from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
-from app.deps import Scope
-from app.models import (
+from app.api.deps import Scope
+from app.db.models import (
     Channel,
     ReminderLog,
     ReminderType,
@@ -19,7 +19,7 @@ from app.services.audit import audit
 from app.services.messages import increment_text, rent_reminder_text, welcome_text
 from app.services.rent import next_anniversary, rent_on
 from app.services.tenants import log_reminder
-from app.services.whatsapp import get_sender
+from app.integrations.whatsapp import get_sender
 from app.utils.formatting import today_ist
 
 router = APIRouter(prefix="/api/reminders", tags=["reminders"])
