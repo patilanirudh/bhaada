@@ -2,6 +2,7 @@
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,6 +26,7 @@ from app.api.routes import (
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging
+from app.integrations.storage import StorageError, startup_report
 
 log = logging.getLogger("app")
 access_log = logging.getLogger("app.access")
@@ -37,7 +39,14 @@ def create_app() -> FastAPI:
     configure_logging()
     s.validate_for_production()  # refuse to boot with unsafe production settings
 
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        for line in startup_report():
+            log.info("Startup check: %s", line)
+        yield
+
     app = FastAPI(
+        lifespan=lifespan,
         title="Rent Manager API",
         version="1.0.0",
         docs_url=None if s.is_production else "/api/docs",
@@ -81,6 +90,15 @@ def create_app() -> FastAPI:
     async def app_error_handler(request: Request, exc: AppError):
         """Domain errors raised by services -> HTTP responses."""
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.message, "errors": exc.errors})
+
+    @app.exception_handler(StorageError)
+    async def storage_error_handler(request: Request, exc: StorageError):
+        """File storage problems: log the real reason, show the user a friendly message."""
+        rid = getattr(request.state, "request_id", "-")
+        log.error("Storage error rid=%s path=%s: %s", rid, request.url.path, exc)
+        return JSONResponse(status_code=503, content={
+            "detail": f"File storage is not available right now. Please try again shortly. (ref {rid})",
+            "errors": {}})
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError):

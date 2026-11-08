@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,7 +35,10 @@ class Settings(BaseSettings):
     signed_url_seconds: int = 300
 
     # Email (system account, used for password reset & owner notifications fallback)
-    email_backend: str = "smtp"  # smtp | console | memory
+    email_backend: str = "smtp"  # smtp | brevo | console | memory
+    # Brevo (HTTPS email API) - use where outbound SMTP is blocked, e.g. Render's free plan
+    brevo_api_key: str = ""
+    email_sender_address: str = ""  # verified sender in Brevo; defaults to SYSTEM_GMAIL_ADDRESS
     system_gmail_address: str = ""
     system_gmail_app_password: str = ""
     smtp_host: str = "smtp.gmail.com"
@@ -46,6 +50,15 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _strip_values(cls, data):
+        """Trim spaces/newlines: secrets pasted into hosting dashboards often carry a trailing newline,
+        which silently breaks HTTP headers (e.g. the Supabase key)."""
+        if isinstance(data, dict):
+            return {k: v.strip() if isinstance(v, str) else v for k, v in data.items()}
+        return data
 
     def validate_for_production(self) -> None:
         """Fail fast at startup if production is configured unsafely."""
@@ -66,8 +79,10 @@ class Settings(BaseSettings):
             problems.append("DATABASE_URL must point to PostgreSQL, not SQLite")
         if self.storage_backend != "supabase":
             problems.append("STORAGE_BACKEND must be 'supabase' (local disk is wiped on free hosts)")
-        if self.email_backend != "smtp":
-            problems.append("EMAIL_BACKEND must be 'smtp'")
+        if self.email_backend not in ("smtp", "brevo"):
+            problems.append("EMAIL_BACKEND must be 'smtp' or 'brevo'")
+        if self.email_backend == "brevo" and not self.brevo_api_key:
+            problems.append("BREVO_API_KEY must be set when EMAIL_BACKEND=brevo")
         if problems:
             raise RuntimeError("Unsafe production configuration:\n- " + "\n- ".join(problems))
 

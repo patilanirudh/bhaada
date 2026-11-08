@@ -64,6 +64,18 @@ function Gmail() {
     mutationFn: () => settingsApi.removeGmail(),
     onSuccess: (o) => { setOwner(o); setAddress(""); toast("Gmail disconnected"); },
   });
+  if (owner!.email_mode === "service") {
+    return (
+      <Section title="Email" desc="Reminders, receipts and welcome emails are sent automatically by Rent Manager.">
+        <ul className="mb-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
+          <li>Emails show <b>your name</b> as the sender.</li>
+          <li>When a tenant replies, it comes to <b>{owner!.email}</b>.</li>
+          <li>No Gmail setup is needed.</li>
+        </ul>
+        <Button variant="secondary" loading={test.isPending} onClick={() => test.mutate()}>Send me a test email</Button>
+      </Section>
+    );
+  }
   return (
     <Section title="Gmail for reminders" desc={<>Automatic emails (reminders, receipts) are sent from <b>your own Gmail</b>, free.
       {owner!.gmail_configured && <> <Badge value="ACTIVE" className="ml-1" /> Connected as {owner!.gmail_address}</>}</>}>

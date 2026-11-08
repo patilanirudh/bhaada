@@ -9,7 +9,7 @@ from app.db.models import Channel, Payment, ReminderType, RentEntry, Tenant, Ten
 from app.db.scope import OwnerScope
 from app.documents.pdf import receipt_pdf
 from app.integrations.email import Attachment, EmailError, send_owner_email
-from app.integrations.storage import get_storage
+from app.integrations.storage import StorageError, get_storage
 from app.schemas import PaymentIn, PaymentOut, RentEntryOut
 from app.services.audit import audit
 from app.services.rent import compute_status, ensure_entries, refresh_statuses
@@ -81,8 +81,12 @@ def record_payment(scope: OwnerScope, e: RentEntry, body: PaymentIn) -> RentEntr
         month_label=month_label(e.month), amount=p.amount, mode=p.mode, reference=p.reference,
         paid_on=fmt_date(p.paid_on), amount_due=e.amount_due, total_paid=e.amount_paid,
     )
-    p.receipt_pdf_path = get_storage().save(
-        f"owners/{scope.owner_id}/receipts/{p.receipt_number}.pdf", pdf, "application/pdf")
+    try:
+        p.receipt_pdf_path = get_storage().save(
+            f"owners/{scope.owner_id}/receipts/{p.receipt_number}.pdf", pdf, "application/pdf")
+    except StorageError as err:
+        # The payment is what matters; the receipt is still emailed and can be regenerated.
+        log.error("Receipt upload failed for payment %s: %s", p.id, err)
     audit(scope.db, scope.owner_id, "payment", "payment", p.id,
           {"rent_entry_id": e.id, "amount": p.amount, "mode": p.mode})
     scope.db.commit()

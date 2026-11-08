@@ -39,6 +39,7 @@ def owner_out(owner: Owner) -> OwnerOut:
     out = OwnerOut.model_validate(owner)
     out.gmail_configured = bool(owner.gmail_address and owner.gmail_app_password_encrypted)
     out.default_house_rules = owner.default_house_rules or DEFAULT_HOUSE_RULES
+    out.email_mode = "service" if get_settings().email_backend == "brevo" else "gmail"
     return out
 
 

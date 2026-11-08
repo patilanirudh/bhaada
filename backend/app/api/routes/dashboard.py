@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 
 from app.api.deps import Scope
 from app.api.routes.reminders import due_items, increment_items
+from app.core.config import get_settings
 from app.db.models import RentEntry, RentStatus, Tenant, TenantStatus
 from app.services.rent import month_str
 from app.utils.formatting import month_label, today_ist
@@ -82,6 +83,8 @@ def actions(scope: Scope):
                                "created_at": t.created_at.isoformat()} for t in pending],
         "upcoming_increments": increment_items(scope, today),
         "expiring_agreements": expiring,
-        "gmail_configured": bool(scope.owner.gmail_address and scope.owner.gmail_app_password_encrypted),
+        # With the app-wide email service (Brevo) owners need no Gmail of their own.
+        "email_ready": get_settings().email_backend == "brevo"
+        or bool(scope.owner.gmail_address and scope.owner.gmail_app_password_encrypted),
         "upi_configured": bool(scope.owner.upi_id),
     }
