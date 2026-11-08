@@ -2,11 +2,13 @@
 
 A multi-owner rent management web app for Indian landlords, built to run entirely on free tiers.
 
+**Live app:** https://bhaada-nu.vercel.app · **Contents:** [User guide](#user-guide-for-owners) · [Where to find things](#where-to-find-things) · [Local setup](#local-setup) · [Deployment](#free-deployment-step-by-step) · [Architecture](#architecture)
+
 - **Frontend:** React + Vite + TypeScript + Tailwind + TanStack Query, mobile-first (`/frontend`)
 - **Backend:** FastAPI + SQLAlchemy 2 + Alembic + Pydantic v2 (`/backend`)
 - **Database:** PostgreSQL on Neon (production), SQLite (local)
 - **Files:** Supabase Storage private bucket (production), `./uploads` (local)
-- **Email:** each owner's own Gmail via App Password
+- **Email:** Brevo HTTPS API in production (Render's free plan blocks SMTP); Gmail SMTP optional locally
 - **Daily jobs:** `POST /api/jobs/run-daily`, called by a GitHub Actions cron at 08:00 IST
 
 ## Features
@@ -23,6 +25,138 @@ A multi-owner rent management web app for Indian landlords, built to run entirel
 - **Excel**: on-demand export (Tenants, Payments, Rent History, Summary), an auto-saved copy after every change, and import with column mapping and preview.
 - Dashboard: cards, an "Action today" list with one-tap actions, and a 12-month chart.
 - Every query is scoped by `owner_id`, and tests prove isolation between owners. Audit log, rate-limited public form with a honeypot, CORS lock-down and security headers.
+
+## User guide (for owners)
+
+The app runs in any browser, on phone or computer. Live: **https://bhaada-nu.vercel.app**
+
+### First-time setup (about 5 minutes)
+1. **Create account:** open the app, tap **Create account**, and enter your name, email and password.
+2. **Settings:**
+   - **Profile & UPI:** add your UPI ID (e.g. `name@okhdfcbank`). Every reminder includes a one-tap UPI pay link.
+   - **Message language:** English or Hindi for reminders.
+   - **Default house rules:** your rules for new properties. Tick *"Also replace the rules of all my existing properties"* to apply them everywhere.
+   - **Message templates:** edit the reminder, overdue, increment and welcome texts. Placeholders: `{name}` `{amount}` `{month}` `{unit}` `{due_date}` `{upi_id}` `{owner_name}`.
+   - **Email:** nothing to set up. Emails show **your name**, and tenant replies come to **your email**. Tap **Send me a test email** to check.
+3. **Properties:** **+ Add property** (name, address, house rules), then **+ Unit** for each flat or room, with its default rent.
+
+### Adding tenants
+- **New tenant (recommended):** go to **Links → + Create registration link**, pick the property (and optionally the unit), then **Share on WhatsApp** or **Copy link**. The tenant opens it and fills in their details, uploads their Aadhaar or PAN, reads the house rules and gives consent. A link works once and expires after 7 days by default.
+- **Approve:** the new tenant appears on **Home → Pending approvals**. Tap **Review**, check the ID with **View ID document**, fill in rent, deposit, agreement dates, due day and yearly increment %, then tap **Approve**. The tenant gets a welcome email with the house rules. **Reject** deletes their ID document immediately.
+- **Tenant already living with you:** go to **Tenants → + Add tenant**. You can create a new flat or room from the Unit dropdown.
+- **Many tenants at once:** go to **Tenants → Import Excel**, download the blank template, fill it in, upload it, match the columns, check the preview, then import.
+
+### Collecting rent
+- Each month's rent appears automatically on the tenant's **Rent ledger** and on **Payments**.
+- **Mark as paid:** open the tenant (or **Payments**), tap **Mark as paid**, and enter the amount (partial is fine), date, mode (UPI / Cash / Bank / Other) and reference. A **PDF receipt** is created and emailed to the tenant.
+- **WhatsApp reminder:** tap **Remind** on a tenant. WhatsApp opens with the message already written, and you tap Send. To go through everyone due, use **Home → Send all due reminders**: it moves tenant by tenant, and you choose **Sent ✓** or **Skip** for each.
+
+### Day-to-day pages
+| Page | What it's for |
+|---|---|
+| **Home** | Today's to-do list: approvals, due today, overdue, rent increases in the next 30 days, agreements ending soon |
+| **Dashboard** | Money overview: this month's expected, collected and pending, the last 12 months, collection rate, deposits held, chart |
+| **Tenants** | Search and filter; open a tenant for profile, ledger, rent history, reminder log and actions |
+| **Payments** | Monthly ledger and payment history; Excel download |
+| **Links** | Registration links (create, share, turn off) |
+
+### Tenant actions (open a tenant)
+- **Change rent:** a manual rent change; yearly increases continue from the new amount.
+- **Renew:** extend the agreement end date.
+- **Vacate:** enter the move-out date and deductions (a ₹3,000 maintenance charge is pre-filled). It calculates **deposit − pending rent − deductions** and creates a **settlement PDF**.
+- **Delete ID documents / Erase personal data:** for former tenants. Erasing removes the name, phone, email, address, ID and documents, and keeps payment records without the person's identity (DPDP right to erasure).
+
+### When reminders go out (automatic, every day at 8 AM IST)
+Example: due day **5** for December rent, still unpaid.
+
+| Date | Who gets it | What |
+|---|---|---|
+| Dec 2 | Tenant (email) | Reminder: rent due in 3 days, with UPI link |
+| Dec 5 | Tenant (email) | Due today |
+| Dec 8, 11, 14, … | Tenant (email) | Overdue, every 3 days until paid |
+| 30 days before the agreement anniversary | Tenant (email) | Rent increase notice (old rent → new rent) |
+| On the anniversary | n/a | The new rent applies automatically, and Rent history updates |
+| 30 and 7 days before the agreement ends | You (email) | Agreement ending; use **Renew** |
+| 90 days after move-out | n/a | ID documents deleted automatically |
+
+- Emails go only to tenants who gave an email address. Reminders stop as soon as the month is paid.
+- **WhatsApp reminders are never automatic.** You send them yourself with the Remind button.
+- The first month's due date is the agreement start date if that's later than the due day.
+
+## Where to find things
+
+### As an owner (in the app)
+| What | Where |
+|---|---|
+| Rent receipt PDF | Tenant → **Rent ledger** → **Receipt**, or **Payments → Payment history → Receipt** |
+| Settlement PDF | Vacated tenant → **Deposit settlement → Settlement PDF** |
+| Tenant's ID document / photo | Tenant → **Profile → View ID document** (link valid for 5 minutes) |
+| All your data in Excel | **Payments → Download Excel** (Tenants, Payments, Rent History, Summary); **Saved copy** opens the auto-saved latest version |
+| Reminders sent | Tenant → **Reminder log** |
+| Rent changes | Tenant → **Rent history** |
+
+### As admin / developer
+**Database (Neon):** https://console.neon.tech → project **bhaada** → **Tables** (browse) or **SQL Editor** (query). Use read-only `SELECT`s here; make changes through the app so its rules and audit log apply.
+
+```sql
+-- Owners
+SELECT id, name, email, upi_id, created_at FROM owners;
+
+-- Tenants with property and unit
+SELECT t.id, t.full_name, t.phone, t.status, p.name AS property, u.name AS unit,
+       t.current_rent, t.due_day, t.agreement_start_date, t.agreement_end_date
+FROM tenants t
+LEFT JOIN properties p ON p.id = t.property_id
+LEFT JOIN units u ON u.id = t.unit_id
+ORDER BY t.id DESC;
+
+-- This month: due vs paid
+SELECT t.full_name, r.month, r.amount_due, r.amount_paid, r.status, r.due_date
+FROM rent_entries r JOIN tenants t ON t.id = r.tenant_id
+WHERE r.month = to_char(now(), 'YYYY-MM');
+
+-- Latest payments
+SELECT p.paid_on, t.full_name, p.amount, p.mode, p.reference, p.receipt_number
+FROM payments p
+JOIN rent_entries r ON r.id = p.rent_entry_id
+JOIN tenants t ON t.id = r.tenant_id
+ORDER BY p.id DESC LIMIT 20;
+
+-- Emails / WhatsApp reminders (and failures)
+SELECT sent_at, tenant_id, type, channel, status, error FROM reminder_logs ORDER BY id DESC LIMIT 30;
+
+-- Audit trail
+SELECT created_at, owner_id, action, entity, entity_id, details FROM audit_logs ORDER BY id DESC LIMIT 30;
+```
+
+Other tables: `properties`, `units`, `registration_links`, `rent_history`, `message_templates`. Aadhaar/PAN numbers are stored encrypted (`id_number_encrypted`); only the last 4 digits are readable.
+
+**Files (Supabase):** https://supabase.com/dashboard → project **bhaada-storage** → **Storage → rent-private**:
+```
+owners/<owner id>/
+  rent-data.xlsx                    auto-saved Excel
+  receipts/RM<owner>-<yymm>-<n>.pdf rent receipts
+  tenants/<tenant id>/
+    id-xxxx.pdf|jpg|png             ID document
+    photo-xxxx.jpg|png              photo (optional)
+    settlement-xxxx.pdf             move-out settlement
+```
+These are real people's ID documents. Don't download or share them unnecessarily, and **never make the bucket public**.
+
+**Logs and health:**
+- **Render → rent-manager-api → Logs.** Every boot prints `Startup check: storage=supabase … -> ok` and `email=brevo configured=yes`. Errors show `rid=<ref>`, which matches the "(ref …)" a user sees.
+- **Health:** `https://rent-manager-api-bw0s.onrender.com/api/health` returns `{"status":"ok"}`.
+- **Daily job runs:** GitHub → **Actions → Daily rent jobs**.
+- **Emails sent:** Brevo → **Transactional → Logs**.
+
+### Troubleshooting
+| Symptom | Likely cause / fix |
+|---|---|
+| First page load takes 30–60 s | Render free plan sleeps after 15 min idle (normal). The paid plan (~$7/month) removes this. |
+| "File storage is not available (ref …)" | Check Render logs for that `rid`. Usually a wrong or expired `SUPABASE_SERVICE_KEY`, or a paused Supabase project (free projects pause after a week of inactivity). |
+| Emails not arriving | Check the spam folder first. Then Brevo → Transactional → Logs. Startup check must show `email=brevo configured=yes`. Brevo free = 300 emails/day. |
+| Registration link "not available" | It was used, expired or turned off. Create a new one under **Links**. |
+| Daily job red in GitHub Actions | `API_URL` / `CRON_SECRET` secrets don't match Render, or Render was down. Re-run with **Run workflow**. |
 
 ## Local setup
 
@@ -90,7 +224,7 @@ The tests cover rent calculation, increments (including leap years), Aadhaar Ver
 
 Frontend: `VITE_API_URL` stays empty when `/api` is served from the same domain (the Vercel rewrite). Set it only if you call the API directly.
 
-## How to create a Gmail App Password
+## How to create a Gmail App Password (optional, for `EMAIL_BACKEND=smtp`)
 
 1. Open https://myaccount.google.com/security and turn on **2-Step Verification**. App Passwords need it.
 2. Open https://myaccount.google.com/apppasswords.
@@ -108,12 +242,18 @@ Gmail allows about 500 emails per day per account. If a send fails, it is logged
 ### 2. File storage on Supabase
 1. Create a free project at https://supabase.com.
 2. Go to **Storage → New bucket**, name it `rent-private`, and leave **Public** **unchecked**.
-3. Go to **Project Settings → API** and copy the Project URL and the `service_role` key. Keep that key secret; it is only for the backend.
+3. Copy the **Project URL** (project home page), then **Project Settings → API Keys → Secret keys** and copy the `sb_secret_…` key. Keep that key secret; it is only for the backend. (Legacy `service_role` keys also work but are being retired.)
+
+### 2b. Email on Brevo
+1. Sign up at https://www.brevo.com (free: 300 emails/day) and verify your phone.
+2. **Settings → Senders, domains, IPs → Senders → Add sender** with the address emails come from, then confirm the email Brevo sends you.
+3. **Settings → SMTP & API → API keys → Generate**: access **Restricted**, **Transactional email = All**, everything else **None**. Copy the `xkeysib-…` key (it's shown once).
+4. Later, a custom domain (authenticated under **Domains**) improves inbox placement compared with a Gmail sender.
 
 ### 3. Backend on Render
 1. Push this repo to GitHub.
 2. On https://render.com choose **New → Blueprint** and select the repo. Render reads `render.yaml`.
-3. Fill in the values marked `sync: false`: `DATABASE_URL` (Neon), `FRONTEND_URL` (your Vercel URL; set it after step 4 if needed), `FERNET_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SYSTEM_GMAIL_ADDRESS`, `SYSTEM_GMAIL_APP_PASSWORD`.
+3. Fill in the values marked `sync: false`: `DATABASE_URL` (Neon), `FRONTEND_URL` (your Vercel URL; set it after step 4 if needed), `FERNET_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (the new `sb_secret_…` key), `BREVO_API_KEY`, `EMAIL_SENDER_ADDRESS`, `SYSTEM_GMAIL_ADDRESS`. Paste each value **without** trailing spaces or new lines.
 4. Deploy. Each start runs `alembic upgrade head` and then uvicorn. Check `https://<service>.onrender.com/api/health`.
 5. Copy the generated `CRON_SECRET` value from the Render dashboard.
 6. Optional demo data: open the Render shell and run `python -m app.scripts.seed`.
@@ -148,7 +288,7 @@ The job is idempotent. Every email is recorded in `reminder_logs` with a dedupe 
 
 ## Maintenance notes
 
-- **WhatsApp:** only official click-to-chat links are used. `WhatsAppSender` in `app/services/whatsapp.py` is an interface. To add the WhatsApp Cloud API later, implement `send()` and return it from `get_sender()`; nothing else needs to change.
+- **WhatsApp:** only official click-to-chat links are used. `WhatsAppSender` in `app/integrations/whatsapp.py` is an interface. To add the WhatsApp Cloud API later, implement `send()` and return it from `get_sender()`; nothing else needs to change.
 - **Excel import:** "Base Rent" is treated as the rent the tenant pays today. A blank template is in `templates/tenant-import-template.xlsx`, and owners can also download it from the app.
 - **Scaling:** the rate limiter is in-memory, which is fine for a single Render instance. Move it to Redis before running more than one instance.
 
@@ -158,7 +298,7 @@ The job is idempotent. Every email is recorded in `reminder_logs` with a dedupe 
 Browser (React SPA)  ──/api──▶  FastAPI backend  ──▶  PostgreSQL (Neon)
   pages → api/endpoints.ts        api/routes  (HTTP only)       │
         → api/client.ts           services    (business rules)  ├──▶ Supabase Storage (private files)
-                                  db          (models, scope)   ├──▶ Gmail SMTP
+                                  db          (models, scope)   ├──▶ Brevo email API (HTTPS)
                                   integrations / documents      └──▶ wa.me links (owner taps send)
 GitHub Actions cron ──X-Cron-Secret──▶ POST /api/jobs/run-daily
 ```
@@ -170,7 +310,7 @@ GitHub Actions cron ──X-Cron-Secret──▶ POST /api/jobs/run-daily
 | `api/routes/` | HTTP: parse/validate requests, auth, rate limits, call a service, shape the response | services, db, schemas |
 | `services/` | Business rules: rent maths, tenant lifecycle, ledger, registration, reminders, daily job. Raises domain errors (`core/errors.py`) and never imports FastAPI | db, integrations, documents |
 | `db/` | SQLAlchemy models, sessions, and `OwnerScope`, the owner-filtered data gateway | core |
-| `integrations/` | External systems behind interfaces: `Storage` (local / Supabase), email (SMTP), `WhatsAppSender` | core |
+| `integrations/` | External systems behind interfaces: `Storage` (local / Supabase), email (Brevo HTTPS or SMTP), `WhatsAppSender` | core |
 | `documents/` | File formats with no DB access: PDF receipts and settlements, Excel export/template/parsing | utils |
 | `core/` | Config (with production safety checks), security (bcrypt, JWT, Fernet), errors, logging, defaults | nothing app-specific |
 
