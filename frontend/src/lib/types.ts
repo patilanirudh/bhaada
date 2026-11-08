@@ -9,6 +9,7 @@ export type Owner = {
   preferred_language: "en" | "hi";
   created_at: string;
   default_house_rules: string;
+  email_mode: "service" | "gmail";
 };
 
 export type Unit = { id: number; property_id: number; name: string; default_rent: number };
@@ -185,6 +186,6 @@ export type ActionsData = {
     end_date: string;
     days_left: number;
   }[];
-  gmail_configured: boolean;
+  email_ready: boolean;
   upi_configured: boolean;
 };

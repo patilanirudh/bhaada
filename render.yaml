@@ -38,8 +38,13 @@ services:
         sync: false
       - key: SUPABASE_BUCKET
         value: rent-private
+      # Render's free plan blocks SMTP ports (25/465/587), so email goes over HTTPS via Brevo.
       - key: EMAIL_BACKEND
-        value: smtp
+        value: brevo
+      - key: BREVO_API_KEY
+        sync: false            # Brevo -> SMTP & API -> API keys
+      - key: EMAIL_SENDER_ADDRESS
+        sync: false            # a sender address verified in Brevo (e.g. your Gmail)
       - key: SYSTEM_GMAIL_ADDRESS
         sync: false
       - key: SYSTEM_GMAIL_APP_PASSWORD

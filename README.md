@@ -83,7 +83,8 @@ The tests cover rent calculation, increments (including leap years), Aadhaar Ver
 | `STORAGE_BACKEND` | `local` or `supabase`. |
 | `LOCAL_UPLOAD_DIR` | Folder for the local backend. |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET` | Supabase project URL, the **service_role** key (server only) and a **private** bucket name. |
-| `EMAIL_BACKEND` | `smtp` (real Gmail) or `console` (log only). |
+| `EMAIL_BACKEND` | `smtp` (Gmail SMTP), `brevo` (HTTPS email API) or `console` (log only). **Render's free plan blocks SMTP ports, so use `brevo` there.** |
+| `BREVO_API_KEY`, `EMAIL_SENDER_ADDRESS` | For `brevo`: API key (Brevo, then SMTP & API, then API keys) and a sender address verified in Brevo. Emails show the owner's name, and replies go to the owner. |
 | `SYSTEM_GMAIL_ADDRESS`, `SYSTEM_GMAIL_APP_PASSWORD` | A system Gmail for password-reset emails, and for owner notifications when the owner has not connected Gmail. |
 | `REGISTRATION_RATE_LIMIT` | Public registration submissions per IP per hour (default 10). |
 

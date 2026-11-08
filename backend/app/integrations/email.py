@@ -7,11 +7,15 @@ Backends:
 """
 from __future__ import annotations
 
+import base64
 import logging
 import smtplib
 import ssl
 from dataclasses import dataclass, field
 from email.message import EmailMessage
+from html import escape as html_escape
+
+import httpx
 
 from app.core.config import get_settings
 from app.core.security import decrypt
@@ -69,12 +73,55 @@ def system_credentials() -> SmtpCredentials | None:
     return SmtpCredentials(s.system_gmail_address, s.system_gmail_app_password, s.app_name)
 
 
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
+
+def _send_brevo(creds: SmtpCredentials | None, to: str, subject: str, text: str, html: str | None,
+                attachments: list[Attachment], reply_to: str | None) -> None:
+    """Send through Brevo's HTTPS API (port 443).
+
+    Used where outbound SMTP is blocked (e.g. Render's free plan blocks 25/465/587).
+    The sender address must be verified in Brevo; the display name is the owner's name.
+    """
+    s = get_settings()
+    sender_email = s.email_sender_address or s.system_gmail_address
+    if not s.brevo_api_key or not sender_email:
+        raise EmailError("Email service is not configured (BREVO_API_KEY / sender address)")
+    payload: dict = {
+        "sender": {"email": sender_email, "name": (creds.display_name if creds else s.app_name)[:70]},
+        "to": [{"email": to}],
+        "subject": subject,
+        "textContent": text,
+        "htmlContent": html or "<pre style=\"font-family:inherit;white-space:pre-wrap\">"
+                               f"{html_escape(text)}</pre>",
+    }
+    if reply_to:
+        payload["replyTo"] = {"email": reply_to}
+    if attachments:
+        payload["attachment"] = [{"name": a.filename, "content": base64.b64encode(a.data).decode()}
+                                 for a in attachments]
+    try:
+        r = httpx.post(BREVO_URL, json=payload, timeout=20,
+                       headers={"api-key": s.brevo_api_key, "accept": "application/json"})
+    except httpx.HTTPError as e:
+        raise EmailError(f"Could not reach the email service: {e.__class__.__name__}") from e
+    if r.status_code >= 300:
+        try:
+            detail = r.json().get("message", "")
+        except ValueError:
+            detail = ""
+        raise EmailError(f"Email service rejected the message ({r.status_code}) {detail}".strip())
+
+
 def send_email(creds: SmtpCredentials | None, to: str, subject: str, text: str, html: str | None = None,
                attachments: list[Attachment] | None = None, reply_to: str | None = None) -> None:
     """Send an email. Raises EmailError on failure (callers decide whether to log/retry)."""
     s = get_settings()
     attachments = attachments or []
     backend = s.email_backend
+    if backend == "brevo":
+        _send_brevo(creds, to, subject, text, html, attachments, reply_to)
+        return
     if creds is None and backend == "smtp":
         raise EmailError("Gmail is not configured")
     sender = creds.address if creds else "no-reply@localhost"

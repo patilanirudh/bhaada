@@ -60,12 +60,12 @@ export default function Home() {
         )}
       />
 
-      {(!data.gmail_configured || !data.upi_configured) && (
+      {(!data.email_ready || !data.upi_configured) && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           Finish setup:{" "}
           {!data.upi_configured && <span>add your <b>UPI ID</b> </span>}
-          {!data.upi_configured && !data.gmail_configured && "and "}
-          {!data.gmail_configured && <span>connect your own <b>Gmail</b> </span>}
+          {!data.upi_configured && !data.email_ready && "and "}
+          {!data.email_ready && <span>connect your own <b>Gmail</b> </span>}
           — <Link to="/settings" className="font-medium underline">Open settings</Link>
         </div>
       )}

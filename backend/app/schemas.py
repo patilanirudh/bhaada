@@ -63,6 +63,7 @@ class OwnerOut(ORM):
     preferred_language: str
     created_at: datetime
     default_house_rules: str | None = ""
+    email_mode: str = "gmail"  # "service": app-wide email service (no owner Gmail needed)
 
 
 class HouseRulesIn(BaseModel):
