@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select
 
 from app import database
+from app.default_rules import DEFAULT_HOUSE_RULES
 from app.models import Owner, Payment, Property, RentEntry, Tenant, TenantStatus, Unit
 from app.security import encrypt, hash_password
 from app.services.rent import compute_status, create_entry, ensure_entries, month_str, rent_on
@@ -16,9 +17,7 @@ from app.utils.validators import verhoeff_check_digit
 
 DEMO_EMAIL = "demo@rentmanager.in"
 
-RULES = ("<ul><li>Rent is due by the 5th of every month.</li>"
-         "<li>No smoking inside the flat.</li><li>Visitors allowed till 10 PM.</li>"
-         "<li>Keep common areas clean.</li><li>One month notice before vacating.</li></ul>")
+RULES = DEFAULT_HOUSE_RULES
 
 
 def aadhaar(prefix: str) -> str:

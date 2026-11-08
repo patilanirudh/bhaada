@@ -146,7 +146,7 @@ function VacateForm({ t, onClose }: { t: Tenant; onClose: () => void }) {
   const inv = useInvalidate();
   const toast = useToast();
   const [date, setDate] = useState(todayISO());
-  const [deductions, setDeductions] = useState<{ label: string; amount: string }[]>([]);
+  const [deductions, setDeductions] = useState<{ label: string; amount: string }[]>([{ label: "Maintenance charge", amount: "3000" }]);
   const [notes, setNotes] = useState("");
   const body = () => ({
     vacate_date: date, notes: notes || null,
