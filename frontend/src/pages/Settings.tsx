@@ -67,6 +67,7 @@ function Gmail() {
     <Section title="Gmail for reminders" desc={<>Automatic emails (reminders, receipts) are sent from <b>your own Gmail</b>, free.
       {owner!.gmail_configured && <> <Badge value="ACTIVE" className="ml-1" /> Connected as {owner!.gmail_address}</>}</>}>
       <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="space-y-3">
+        {!owner!.gmail_configured && <p className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">Not connected yet: emails are sent from the Rent Manager system Gmail with your name. Connect your own Gmail below so tenants see your address.</p>}
         <ErrorBox error={save.error} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Gmail address"><Input type="email" required value={address} onChange={(e) => setAddress(e.target.value)} placeholder="you@gmail.com" /></Field>
@@ -76,7 +77,7 @@ function Gmail() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="submit" loading={save.isPending}>Save Gmail</Button>
-          {owner!.gmail_configured && <Button type="button" variant="secondary" loading={test.isPending} onClick={() => test.mutate()}>Send test email</Button>}
+          <Button type="button" variant="secondary" loading={test.isPending} onClick={() => test.mutate()}>Send test email</Button>
           {owner!.gmail_configured && <Button type="button" variant="ghost" className="text-red-600" onClick={() => remove.mutate()}>Disconnect</Button>}
         </div>
       </form>

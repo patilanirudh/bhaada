@@ -26,7 +26,13 @@ from app.models import (
     Tenant,
     TenantStatus,
 )
-from app.services.email import EmailError, notify_owner, owner_credentials, send_owner_email
+from app.services.email import (
+    EmailError,
+    notify_owner,
+    owner_credentials,
+    send_owner_email,
+    system_credentials,
+)
 from app.services.excel import autosave_excel
 from app.services.messages import increment_text, rent_reminder_text, unit_label, upi_link
 from app.services.rent import apply_increment, ensure_entries, next_anniversary, refresh_statuses, rent_on
@@ -75,7 +81,8 @@ class _OwnerMailer:
     def __init__(self, db: Session, owner: Owner, summary: JobSummary, today: date):
         self.db, self.owner, self.summary, self.today = db, owner, summary, today
         self.broken = False
-        self.configured = owner_credentials(owner) is not None or get_settings().email_backend != "smtp"
+        self.configured = (owner_credentials(owner) is not None or system_credentials() is not None
+                           or get_settings().email_backend != "smtp")
 
     def send(self, tenant: Tenant, type_: str, ref: str, subject: str, text: str, html: str | None = None) -> bool:
         if not tenant.email:

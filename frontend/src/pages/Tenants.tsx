@@ -20,22 +20,34 @@ function AddTenant({ properties, onDone }: { properties: Property[]; onDone: (t:
   const qc = useQueryClient();
   const units = properties.flatMap((p) => p.units.map((u) => ({ ...u, label: `${p.name} · ${u.name}` })));
   const [f, setF] = useState({
-    full_name: "", phone: "", email: "", unit_id: String(units[0]?.id ?? ""), base_rent: String(units[0]?.default_rent || ""),
+    full_name: "", phone: "", email: "", unit_id: String(units[0]?.id ?? (properties.length ? "new" : "")), base_rent: String(units[0]?.default_rent || ""),
     security_deposit: "", agreement_start_date: todayISO(), agreement_end_date: "", due_day: "5", increment_percent: "5",
     id_type: "", id_number: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Create a new unit inline (e.g. the property has no units yet)
+  const [newUnit, setNewUnit] = useState({ property_id: String(properties[0]?.id ?? ""), name: "" });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const m = useMutation({
-    mutationFn: () =>
-      api<Tenant>("/api/tenants", {
+    mutationFn: async () => {
+      let unitId = Number(f.unit_id);
+      if (f.unit_id === "new") {
+        const u = await api<{ id: number }>(`/api/properties/${newUnit.property_id}/units`, {
+          method: "POST",
+          body: { name: newUnit.name.trim(), default_rent: Number(f.base_rent || 0) },
+        });
+        unitId = u.id;
+        qc.invalidateQueries({ queryKey: ["properties"] });
+      }
+      return api<Tenant>("/api/tenants", {
         method: "POST",
         body: {
-          ...f, email: f.email || null, unit_id: Number(f.unit_id), base_rent: Number(f.base_rent),
+          ...f, email: f.email || null, unit_id: unitId, base_rent: Number(f.base_rent),
           security_deposit: Number(f.security_deposit || 0), due_day: Number(f.due_day), increment_percent: Number(f.increment_percent),
           agreement_end_date: f.agreement_end_date || null, id_type: f.id_type || null, id_number: f.id_number || null,
         },
-      }),
+      });
+    },
     onSuccess: (t) => { qc.invalidateQueries({ queryKey: ["tenants"] }); qc.invalidateQueries({ queryKey: ["dashboard"] }); onDone(t); },
     onError: (e) => e instanceof ApiError && setErrors(e.errors),
   });
@@ -47,10 +59,16 @@ function AddTenant({ properties, onDone }: { properties: Property[]; onDone: (t:
       if (x) er.id_number = x;
     }
     if (!Number(f.base_rent)) er.base_rent = "Enter the rent";
+    if (f.unit_id === "new" && !newUnit.name.trim()) er.new_unit = "Enter the flat / room name";
     setErrors(er);
     if (!Object.keys(er).length) m.mutate();
   };
-  if (!units.length) return <p className="text-sm text-slate-600">Add a property and unit first.</p>;
+  if (!properties.length)
+    return (
+      <p className="text-sm text-slate-600">
+        First add a property (building/house) on the <Link to="/properties" className="font-medium text-brand-700 underline">Properties</Link> page.
+      </p>
+    );
   return (
     <form onSubmit={submit} className="space-y-3">
       <p className="text-xs text-slate-500">For tenants already living with you. New tenants should use a registration link so they upload their own ID.</p>
@@ -66,8 +84,21 @@ function AddTenant({ properties, onDone }: { properties: Property[]; onDone: (t:
           setF({ ...f, unit_id: e.target.value, base_rent: u?.default_rent ? String(u.default_rent) : f.base_rent });
         }}>
           {units.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+          <option value="new">➕ New flat / room…</option>
         </Select>
       </Field>
+      {f.unit_id === "new" && (
+        <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
+          <Field label="Property" required>
+            <Select value={newUnit.property_id} onChange={(e) => setNewUnit({ ...newUnit, property_id: e.target.value })}>
+              {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Flat / room name" required error={errors.new_unit}>
+            <Input placeholder="Flat 203" value={newUnit.name} onChange={(e) => setNewUnit({ ...newUnit, name: e.target.value })} />
+          </Field>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <Field label="Rent at agreement start (₹)" required error={errors.base_rent}><Input type="number" min={1} value={f.base_rent} onChange={set("base_rent")} /></Field>
         <Field label="Deposit (₹)"><Input type="number" min={0} value={f.security_deposit} onChange={set("security_deposit")} /></Field>

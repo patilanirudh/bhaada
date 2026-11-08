@@ -114,8 +114,13 @@ def send_email(creds: SmtpCredentials | None, to: str, subject: str, text: str, 
 
 def send_owner_email(owner: Owner, to: str, subject: str, text: str, html: str | None = None,
                      attachments: list[Attachment] | None = None) -> None:
-    """Send from the owner's Gmail."""
-    send_email(owner_credentials(owner), to, subject, text, html, attachments, reply_to=owner.email)
+    """Send from the owner's Gmail; falls back to the system Gmail (shown with the owner's name,
+    replies go to the owner) when the owner has not connected their own Gmail yet."""
+    creds = owner_credentials(owner)
+    if creds is None:
+        sys = system_credentials()
+        creds = SmtpCredentials(sys.address, sys.app_password, owner.name) if sys else None
+    send_email(creds, to, subject, text, html, attachments, reply_to=owner.email)
 
 
 def notify_owner(owner: Owner, subject: str, text: str) -> str | None:

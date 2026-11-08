@@ -47,12 +47,10 @@ def remove_gmail(scope: Scope):
 @router.post("/gmail/test")
 def test_gmail(scope: Scope):
     owner = scope.owner
-    if not owner.gmail_address:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Save your Gmail address and App Password first")
     try:
         send_owner_email(owner, owner.email, "Rent Manager test email",
-                         f"Hi {owner.name},\n\nYour Gmail is connected. Rent reminders will be sent from "
-                         f"{owner.gmail_address}.")
+                         f"Hi {owner.name},\n\nEmail is working. Rent reminders and receipts will be sent from "
+                         f"{owner.gmail_address or 'the Rent Manager system Gmail'}.")
     except EmailError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
     return {"detail": f"Test email sent to {owner.email}"}
