@@ -53,3 +53,12 @@ def test_error_responses_and_headers(client, owner_a):
     assert r.headers["X-Frame-Options"] == "DENY"
     assert "default-src 'none'" in r.headers["Content-Security-Policy"]
     assert r.headers["X-Request-ID"]
+
+
+def test_supabase_auth_headers():
+    from app.integrations.storage import auth_headers
+
+    # New secret keys are not JWTs: apikey header only (per Supabase docs)
+    assert auth_headers("sb_secret_abc") == {"apikey": "sb_secret_abc"}
+    # Legacy service_role JWTs: apikey + Bearer
+    assert auth_headers("eyJhbGciOi.x.y") == {"apikey": "eyJhbGciOi.x.y", "Authorization": "Bearer eyJhbGciOi.x.y"}

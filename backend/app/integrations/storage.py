@@ -68,11 +68,22 @@ class LocalStorage(Storage):
         return f"/api/files/signed?token={token}"
 
 
+def auth_headers(service_key: str) -> dict[str, str]:
+    """Supabase auth headers.
+
+    New secret keys (``sb_secret_...``) are not JWTs and must be sent only in the ``apikey``
+    header. Legacy ``service_role`` keys are JWTs and are also sent as a Bearer token.
+    """
+    if service_key.startswith("sb_"):
+        return {"apikey": service_key}
+    return {"apikey": service_key, "Authorization": f"Bearer {service_key}"}
+
+
 class SupabaseStorage(Storage):
     def __init__(self, url: str, service_key: str, bucket: str):
         self.base = url.rstrip("/") + "/storage/v1"
         self.bucket = bucket
-        self.headers = {"Authorization": f"Bearer {service_key}", "apikey": service_key}
+        self.headers = auth_headers(service_key)
 
     def _obj(self, path: str) -> str:
         return f"{self.base}/object/{self.bucket}/{quote(_safe(path))}"
