@@ -429,3 +429,7 @@ frontend/
 render.yaml  frontend/vercel.json  .github/workflows/daily-jobs.yml
 templates/tenant-import-template.xlsx
 ```
+
+## License
+
+[MIT](LICENSE) © 2026 Anirudha Patil
