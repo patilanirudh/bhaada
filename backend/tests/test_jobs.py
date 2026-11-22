@@ -110,3 +110,31 @@ def test_agreement_expiry_notices(client, owner_a, db):
     run(client, date(2026, 12, 24))
     refs = sorted(r.ref for r in db.query(ReminderLog).filter_by(tenant_id=t["id"], type="AGREEMENT_EXPIRY"))
     assert refs == ["30:2026-12-31", "7:2026-12-31"]
+
+
+def test_daily_job_touches_storage_and_reports_failures(client, db, tmp_path):
+    """Supabase pauses free projects after 7 idle days; the daily job keeps storage active."""
+    from app.integrations.storage import LocalStorage, StorageError, set_storage
+    from app.services.jobs import run_daily
+
+    class HealthyStorage(LocalStorage):
+        calls = 0
+
+        def check(self):
+            HealthyStorage.calls += 1
+            return "ok"
+
+    class PausedStorage(LocalStorage):
+        def check(self):
+            raise StorageError("Supabase bucket check failed: ConnectError")
+
+    try:
+        set_storage(HealthyStorage(str(tmp_path)))
+        s = run_daily(db, date(2026, 11, 22))
+        assert s["storage"] == "ok" and HealthyStorage.calls == 1 and not s["errors"]
+
+        set_storage(PausedStorage(str(tmp_path)))
+        s = run_daily(db, date(2026, 11, 22))
+        assert s["storage"].startswith("FAILED") and "storage unavailable" in s["errors"][0]
+    finally:
+        set_storage(None)

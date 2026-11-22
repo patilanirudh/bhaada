@@ -33,7 +33,7 @@ from app.integrations.email import (
     send_owner_email,
     system_credentials,
 )
-from app.integrations.storage import get_storage
+from app.integrations.storage import StorageError, get_storage
 from app.services.excel import autosave_excel
 from app.services.messages import increment_text, rent_reminder_text, unit_label, upi_link
 from app.services.rent import apply_increment, ensure_entries, next_anniversary, refresh_statuses, rent_on
@@ -60,6 +60,7 @@ class JobSummary:
     emails_failed: int = 0
     emails_skipped_no_gmail: int = 0
     documents_deleted: int = 0
+    storage: str = ""
     errors: list[str] = field(default_factory=list)
 
 
@@ -239,8 +240,28 @@ def _process_owner(db: Session, owner: Owner, today: date, s: JobSummary) -> Non
         autosave_excel(owner.id)
 
 
+def storage_keepalive() -> str:
+    """Touch file storage once a day.
+
+    Supabase pauses free projects after 7 days without activity; the app only uses storage
+    when files are uploaded/opened, so a quiet week would pause it and break uploads.
+    """
+    storage = get_storage()
+    check = getattr(storage, "check", None)
+    if check is None:
+        return "local"
+    try:
+        return check()
+    except StorageError as e:
+        log.error("Daily storage check failed: %s", e)
+        return f"FAILED: {e}"
+
+
 def run_daily(db: Session, today: date) -> dict:
     s = JobSummary(date=today.isoformat())
+    s.storage = storage_keepalive()
+    if s.storage.startswith("FAILED"):
+        s.errors.append("storage unavailable (Supabase project paused or key invalid?)")
     for owner in db.scalars(select(Owner).order_by(Owner.id)).all():
         s.owners += 1
         try:
