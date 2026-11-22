@@ -2,7 +2,7 @@
 
 A multi-owner rent management web app for Indian landlords, built to run entirely on free tiers.
 
-**Live app:** https://bhaada-nu.vercel.app · **Contents:** [User guide](#user-guide-for-owners) · [Where to find things](#where-to-find-things) · [Local setup](#local-setup) · [Deployment](#free-deployment-step-by-step) · [Architecture](#architecture)
+**Live app:** https://bhaada-nu.vercel.app · **Contents:** [User guide](#user-guide-for-owners) · [Where to find things](#where-to-find-things) · [Services we use](#services-we-use-and-why) · [Local setup](#local-setup) · [Deployment](#free-deployment-step-by-step) · [Architecture](#architecture)
 
 - **Frontend:** React + Vite + TypeScript + Tailwind + TanStack Query, mobile-first (`/frontend`)
 - **Backend:** FastAPI + SQLAlchemy 2 + Alembic + Pydantic v2 (`/backend`)
@@ -291,6 +291,87 @@ The job is idempotent. Every email is recorded in `reminder_logs` with a dedupe 
 - **WhatsApp:** only official click-to-chat links are used. `WhatsAppSender` in `app/integrations/whatsapp.py` is an interface. To add the WhatsApp Cloud API later, implement `send()` and return it from `get_sender()`; nothing else needs to change.
 - **Excel import:** "Base Rent" is treated as the rent the tenant pays today. A blank template is in `templates/tenant-import-template.xlsx`, and owners can also download it from the app.
 - **Scaling:** the rate limiter is in-memory, which is fine for a single Render instance. Move it to Redis before running more than one instance.
+
+## Services we use (and why)
+
+The app is split across seven free services. Each does one job.
+
+```
+ Owner / tenant browser
+        │  https://bhaada-nu.vercel.app
+        ▼
+ ┌───────────────┐   /api/*    ┌────────────────────┐   SQL    ┌─────────────────┐
+ │ VERCEL        │ ──────────▶ │ RENDER             │ ───────▶ │ NEON            │
+ │ website (UI)  │  (proxied)  │ backend (FastAPI)  │          │ database        │
+ └───────────────┘             └────────────────────┘          └─────────────────┘
+                                  │            │
+                         files    │            │  emails
+                                  ▼            ▼
+                       ┌─────────────────┐  ┌─────────────────┐
+                       │ SUPABASE        │  │ BREVO           │
+                       │ private storage │  │ email sending   │
+                       └─────────────────┘  └─────────────────┘
+
+ GITHUB ── code + tests on every push ── daily 8 AM job ──▶ RENDER /api/jobs/run-daily
+ UPTIMEROBOT ── pings RENDER /api/health every 5 min (keeps it awake, emails if down)
+```
+
+| Service | Its job in this app | What it stores / does | Free plan limit | If it's down or the limit is hit |
+|---|---|---|---|---|
+| **Vercel** | Hosts the **website** people open | The built React app (pages, buttons, forms). Forwards `/api/*` to Render, so the browser sees one domain. | Hobby plan: free but **non-commercial** | Website won't open. No data is affected. |
+| **Render** | Runs the **backend** (the "brain") | Business rules: login, rent maths, receipts, reminders, security checks. Stores **no data itself**. | 750 instance-hours/month, 0.1 CPU, 512 MB; sleeps after 15 min idle; **blocks SMTP email ports** | Login and everything else fails with "Request failed (502)". Data stays safe in Neon and Supabase. |
+| **Neon** | The **database** | All records: owners, properties, units, tenants (ID numbers encrypted), rent entries, payments, rent history, reminder logs, audit log. | 0.5 GB storage; sleeps when idle (wakes in under 1 s) | Nothing loads or saves. |
+| **Supabase** | **Private file storage** | Tenant ID documents and photos, receipt PDFs, settlement PDFs, auto-saved Excel. Files open only through 5-minute signed links. (Only Storage is used, not Supabase's database or auth.) | 1 GB; **project pauses after 7 days of no activity** (the daily job prevents this) | Uploads, receipts, settlement PDFs and Excel copy fail with "File storage is not available". Payments and emails still work, and receipts are still emailed. |
+| **Brevo** | **Sends all emails** | Rent reminders, overdue notices, increment notices, welcome emails, receipts, registration alerts, password resets. Sends over HTTPS because Render blocks normal email ports. Emails show the owner's name, and replies go to the owner. | 300 emails/day | Emails stop. Each attempt is logged as FAILED and retried on the next daily run. |
+| **GitHub** | **Code, safety checks, daily scheduler** | Private repo. On every push or PR: lint, 50+ tests, frontend build. **Daily rent jobs** workflow calls the backend once a day. Merging to `main` auto-deploys Render and Vercel. | Free for private repos | Code is safe. If Actions are down for a day, that day's reminders are sent on the next run. |
+| **UptimeRobot** | **Keep-awake + outage alerts** | Visits `/api/health` every 5 min, so Render never sleeps and pages load instantly. Emails you only when the backend goes down or comes back up. | 50 monitors, 5-min interval | Render goes back to sleeping when idle: the first visit takes about 50 s, but nothing breaks. |
+
+Also used, but not services you manage: a **Gmail address** (the verified sender in Brevo), **WhatsApp** (`wa.me` links that open WhatsApp with a ready message; the owner taps Send, and no API is involved), and **UPI** (`upi://pay` links in reminders that open any UPI app with the amount filled in).
+
+### What happens in a typical day
+1. **Every 5 minutes:** UptimeRobot pings Render, which keeps it awake.
+2. **Once a day (scheduled 8 AM IST; GitHub may start it a few hours late):** GitHub Actions calls `/api/jobs/run-daily` on Render. Render then:
+   - checks Supabase storage (keeps it active),
+   - creates the month's rent entries and marks overdue ones in **Neon**,
+   - applies yearly increments,
+   - sends due, overdue, increment and expiry emails through **Brevo**,
+   - deletes old ID documents and refreshes the Excel copy in **Supabase**.
+3. **When an owner uses the app:** browser → **Vercel** (page) → **Render** (`/api/...`) → **Neon** (data) or **Supabase** (files) → **Brevo** (emails such as receipts).
+4. **When you merge a PR:** **GitHub** runs the tests, then **Render** (backend) and **Vercel** (frontend) redeploy automatically.
+
+### Where to manage each one
+| Service | Dashboard | What you'd go there for |
+|---|---|---|
+| Vercel | https://vercel.com/dashboard → **bhaada** | Deployments, website URL, custom domain |
+| Render | https://dashboard.render.com → **rent-manager-api** | **Logs** (look for `Startup check:`), **Environment** (all secrets and settings), Manual Deploy / restart |
+| Neon | https://console.neon.tech → **bhaada** | **Tables** / **SQL Editor** to view data, connection string, backups (branches) |
+| Supabase | https://supabase.com/dashboard → **bhaada-storage** | **Storage → rent-private** (files), **Restore project** if paused, API keys |
+| Brevo | https://app.brevo.com | **Transactional → Logs** (delivered or bounced emails), senders, API keys, daily usage |
+| GitHub | https://github.com/patilanirudh/bhaada | Code, **Pull requests**, **Actions** (daily job and test runs), **Settings → Secrets** (`API_URL`, `CRON_SECRET`) |
+| UptimeRobot | https://dashboard.uptimerobot.com | Uptime history, alert email settings |
+
+### Where each secret lives
+| Setting | Lives in | Comes from |
+|---|---|---|
+| `DATABASE_URL` | Render → Environment | Neon → Connect (pooled connection string) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Render → Environment | Supabase → project URL, **API Keys → Secret key** (`sb_secret_…`) |
+| `BREVO_API_KEY`, `EMAIL_SENDER_ADDRESS` | Render → Environment | Brevo → **SMTP & API → API keys** (restricted to Transactional email); verified sender |
+| `FERNET_KEY` | Render → Environment (+ **your own backup**) | Generated once. **Never change it**, or encrypted ID numbers become unreadable. |
+| `JWT_SECRET`, `CRON_SECRET` | Render → Environment | Generated by Render |
+| `API_URL`, `CRON_SECRET` | GitHub → Settings → Secrets → Actions | Render URL; same `CRON_SECRET` as Render |
+| `FRONTEND_URL` | Render → Environment | Your Vercel URL (`https://bhaada-nu.vercel.app`) |
+
+Secrets are **never** committed to the repo (`.env` files are git-ignored). When pasting values into Render, make sure there are no trailing spaces or blank lines.
+
+### When to upgrade (rough order as you grow)
+| Upgrade | About | Why / when |
+|---|---|---|
+| Vercel Pro, or move the website to Cloudflare Pages / Netlify | $20/month, or free | **Before charging landlords** (Hobby is non-commercial) |
+| Supabase Pro | $25/month | Past about 500–1,000 tenants with ID documents (1 GB fills up); also removes the 7-day pause |
+| Render Starter | $7/month | Always on, 5× CPU, about 100–200 concurrent users with 2 workers; UptimeRobot no longer needed for keep-awake |
+| Brevo Starter | about $9/month | More than 300 emails/day (about 2,000+ tenants with email) |
+| Own domain (e.g. `bhaada.in`) | about ₹800/year | Professional URL; authenticated email domain in Brevo so emails don't land in spam |
+| Neon Launch | $19/month | Only at large scale (0.5 GB holds 100,000+ tenants) |
 
 ## Architecture
 
