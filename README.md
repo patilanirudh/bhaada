@@ -153,7 +153,7 @@ These are real people's ID documents. Don't download or share them unnecessarily
 | Symptom | Likely cause / fix |
 |---|---|
 | First page load takes 30–60 s | Render free plan sleeps after 15 min idle (normal). The paid plan (~$7/month) removes this. |
-| "File storage is not available (ref …)" | Check Render logs for that `rid`. Usually a wrong or expired `SUPABASE_SERVICE_KEY`, or a paused Supabase project (free projects pause after a week of inactivity). |
+| "File storage is not available (ref …)" | Most often the **Supabase free project was paused** (7 days without activity): open the Supabase dashboard and click **Restore project**. The daily job touches storage every day to prevent this, and its GitHub Actions run turns red (GitHub emails you) if storage is down. Otherwise check Render logs for that `rid` (wrong/expired `SUPABASE_SERVICE_KEY`). |
 | Emails not arriving | Check the spam folder first. Then Brevo → Transactional → Logs. Startup check must show `email=brevo configured=yes`. Brevo free = 300 emails/day. |
 | Registration link "not available" | It was used, expired or turned off. Create a new one under **Links**. |
 | Daily job red in GitHub Actions | `API_URL` / `CRON_SECRET` secrets don't match Render, or Render was down. Re-run with **Run workflow**. |

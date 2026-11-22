@@ -19,6 +19,13 @@ jobs:
           exit 1
       - name: Run daily jobs
         run: |
-          curl -fsS --max-time 300 -X POST \
+          result=$(curl -fsS --max-time 300 -X POST \
             -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.API_URL }}/api/jobs/run-daily"
+            "${{ secrets.API_URL }}/api/jobs/run-daily")
+          echo "$result"
+          # Fail the run (GitHub emails the repo owner) if file storage is down,
+          # e.g. the Supabase free project was paused after 7 idle days.
+          if echo "$result" | grep -q '"storage":"FAILED'; then
+            echo "::error::File storage is unavailable - check the Supabase project (paused?) and SUPABASE_* settings"
+            exit 1
+          fi
